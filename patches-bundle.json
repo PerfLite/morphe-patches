@@ -1,7 +1,7 @@
 {
-  "created_at": "2026-08-17T14:02:00",
-  "description": "## 1.39.6\n\n### 🐛 Bug Fixes & Fallbacks\n\n* **YouTube - Voice-Over Translation:** Handle Lively Voice fallback gracefully without showing error toast when Yandex only supports standard voice for the requested video.",
-  "download_url": "https://github.com/PerfLite/morphe-patches/releases/download/v1.39.6/patches-1.39.6.mpp",
+  "created_at": "2026-08-17T16:17:00",
+  "description": "## 1.39.7\n\n### 🐛 Bug Fixes\n\n* **YouTube - Voice-Over Translation:** Fix previous video translation playing when pausing YouTube Shorts by properly resetting audio state on Shorts player transitions.",
+  "download_url": "https://github.com/PerfLite/morphe-patches/releases/download/v1.39.7/patches-1.39.7.mpp",
   "signature_download_url": "",
-  "version": "1.39.6"
+  "version": "1.39.7"
 }

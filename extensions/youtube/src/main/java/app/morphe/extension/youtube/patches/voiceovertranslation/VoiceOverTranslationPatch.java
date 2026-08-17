@@ -184,7 +184,7 @@ public class VoiceOverTranslationPatch {
                 Logger.printDebug(() -> "Stopping TTS for player type: " + playerType);
                 stopTts();
                 YandexAudioEngine.INSTANCE.stop();
-                if (playerType == PlayerType.NONE) {
+                if (playerType.isNoneOrHidden() || playerType == PlayerType.NONE || playerType == PlayerType.HIDDEN) {
                     currentVideoId = "";
                     segments = new ArrayList<>();
                     TtsPrefetcher.clear();
@@ -198,7 +198,9 @@ public class VoiceOverTranslationPatch {
                 if (state == VideoState.PAUSED) {
                     YandexAudioEngine.INSTANCE.pause();
                 } else if (state == VideoState.PLAYING) {
-                    if (Settings.VOT_ENABLED.get() && sessionEnabled) {
+                    PlayerType currentType = PlayerType.getCurrent();
+                    if (Settings.VOT_ENABLED.get() && sessionEnabled 
+                            && (currentType.isMaximizedOrFullscreen() || currentType == PlayerType.WATCH_WHILE_MINIMIZED || currentType == PlayerType.WATCH_WHILE_PICTURE_IN_PICTURE)) {
                         YandexAudioEngine.INSTANCE.play(VideoInformation.getVideoTime());
                     } else {
                         YandexAudioEngine.INSTANCE.pause();
@@ -272,23 +274,18 @@ public class VoiceOverTranslationPatch {
      * Injection point.
      */
     public static void videoTimeChanged(long timeMs) {
-        if (!Settings.VOT_ENABLED.get() || !sessionEnabled) {
+        PlayerType currentPlayerType = PlayerType.getCurrent();
+        if (!Settings.VOT_ENABLED.get() || !sessionEnabled
+                || (!currentPlayerType.isMaximizedOrFullscreen()
+                    && currentPlayerType != PlayerType.WATCH_WHILE_MINIMIZED
+                    && currentPlayerType != PlayerType.WATCH_WHILE_PICTURE_IN_PICTURE)) {
             VotOriginalVolumePatch.clearAudioMultiplier();
             YandexAudioEngine.INSTANCE.pause();
-            return; // Feature or session disabled.
+            return; // Feature or session disabled or non-playing player type (Shorts, etc).
         }
         Utils.verifyOnMainThread();
 
         propagatePlaybackSpeedIfChanged();
-
-        PlayerType currentPlayerType = PlayerType.getCurrent();
-        if (!currentPlayerType.isMaximizedOrFullscreen()
-                && currentPlayerType != PlayerType.WATCH_WHILE_MINIMIZED
-                && currentPlayerType != PlayerType.WATCH_WHILE_PICTURE_IN_PICTURE) {
-            Logger.printDebug(() -> "Ignoring TTS for player type: " + currentPlayerType);
-            YandexAudioEngine.INSTANCE.pause();
-            return;
-        }
         VideoState state = VideoState.getCurrent();
         // Capture position before the PAUSED early return so translate() can pick the right
         // initial batch even when the first setVideoTime ticks arrive before play begins.
