@@ -1,3 +1,9 @@
+## [1.39.3](https://github.com/PerfLite/morphe-patches/compare/v1.39.2...v1.39.3) (2026-08-17)
+
+### 🐛 Bug Fixes
+
+* **yandex:** update authentication protocol with session tokens and rotated hmac ([e7cda18](https://github.com/PerfLite/morphe-patches/commit/e7cda18e416f9610bc1bdf729e50defd36a3b31f))
+
 ## [1.38.0](https://github.com/MorpheApp/morphe-patches/compare/v1.37.0...v1.38.0) (2026-08-01)
 
 ### 🐛 Bug Fixes
