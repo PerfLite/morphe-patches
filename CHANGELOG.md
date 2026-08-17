@@ -1,3 +1,9 @@
+## [1.39.6](https://github.com/PerfLite/morphe-patches/compare/v1.39.5...v1.39.6) (2026-08-17)
+
+### 🐛 Bug Fixes
+
+* **vot:** fix lively voice lang resolution (auto->en when target=ru) ([ad1e52f](https://github.com/PerfLite/morphe-patches/commit/ad1e52f98a062f0a8a76745277b40fe56322a362))
+
 ## [1.39.3](https://github.com/PerfLite/morphe-patches/compare/v1.39.2...v1.39.3) (2026-08-17)
 
 ### 🐛 Bug Fixes

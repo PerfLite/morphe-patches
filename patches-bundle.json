@@ -1,7 +1,7 @@
 {
-  "created_at": "2026-08-17T13:15:00",
-  "description": "## 1.39.5\n\n### ✨ New Features\n\n* **YouTube - Voice-Over Translation (Yandex):** Add \"Lively voice\" toggle — switch between standard dub voice and expressive emotional AI dubbing directly from the player overlay.",
-  "download_url": "https://github.com/PerfLite/morphe-patches/releases/download/v1.39.5/patches-1.39.5.mpp",
+  "created_at": "2026-08-17T13:27:47",
+  "description": "## [1.39.6](https://github.com/PerfLite/morphe-patches/compare/v1.39.5...v1.39.6) (2026-08-17)\n\n### 🐛 Bug Fixes\n\n* **vot:** fix lively voice lang resolution (auto->en when target=ru) ([ad1e52f](https://github.com/PerfLite/morphe-patches/commit/ad1e52f98a062f0a8a76745277b40fe56322a362))",
+  "download_url": "https://github.com/PerfLite/morphe-patches/releases/download/v1.39.6/patches-1.39.6.mpp",
   "signature_download_url": "",
-  "version": "1.39.5"
+  "version": "1.39.6"
 }
