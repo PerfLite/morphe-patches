@@ -4,6 +4,16 @@ package yandex.vtrans;
 
 option java_package = "app.morphe.extension.youtube.patches.voiceovertranslation.yandex";
 
+message YandexSessionRequest {
+  string uuid = 1;
+  string module = 2;
+}
+
+message YandexSessionResponse {
+  string secret_key = 1;
+  int32 expires = 2;
+}
+
 message VideoTranslationHelpObject {
   string help_type = 1;
   string help_url = 2;

@@ -478,9 +478,10 @@ public class VoiceOverTranslationPatch {
         Utils.runOnBackgroundThread(() -> {
             try {
                 if ("yandex".equals(loadService)) {
-                    String videoUrl = "https://www.youtube.com/watch?v=" + videoId;
+                    String videoUrl = "https://youtu.be/" + videoId;
+                    double duration = VideoInformation.getVideoLength() / 1000.0;
                     app.morphe.extension.youtube.patches.voiceovertranslation.yandex.Vtrans.VideoTranslationResponse response = 
-                        YandexTranslationService.translate(videoUrl, "en", resolveTargetLang(), 0);
+                        YandexTranslationService.translate(videoUrl, "en", loadLang, duration);
                     
                     int retries = 0;
                     while (retries < 60) {
