@@ -198,7 +198,11 @@ public class VoiceOverTranslationPatch {
                 if (state == VideoState.PAUSED) {
                     YandexAudioEngine.INSTANCE.pause();
                 } else if (state == VideoState.PLAYING) {
-                    YandexAudioEngine.INSTANCE.play(VideoInformation.getVideoTime());
+                    if (Settings.VOT_ENABLED.get() && sessionEnabled) {
+                        YandexAudioEngine.INSTANCE.play(VideoInformation.getVideoTime());
+                    } else {
+                        YandexAudioEngine.INSTANCE.pause();
+                    }
                 } else if (state == VideoState.ENDED) {
                     YandexAudioEngine.INSTANCE.stop();
                 }
@@ -270,6 +274,7 @@ public class VoiceOverTranslationPatch {
     public static void videoTimeChanged(long timeMs) {
         if (!Settings.VOT_ENABLED.get() || !sessionEnabled) {
             VotOriginalVolumePatch.clearAudioMultiplier();
+            YandexAudioEngine.INSTANCE.pause();
             return; // Feature or session disabled.
         }
         Utils.verifyOnMainThread();
@@ -281,6 +286,7 @@ public class VoiceOverTranslationPatch {
                 && currentPlayerType != PlayerType.WATCH_WHILE_MINIMIZED
                 && currentPlayerType != PlayerType.WATCH_WHILE_PICTURE_IN_PICTURE) {
             Logger.printDebug(() -> "Ignoring TTS for player type: " + currentPlayerType);
+            YandexAudioEngine.INSTANCE.pause();
             return;
         }
         VideoState state = VideoState.getCurrent();
@@ -290,6 +296,7 @@ public class VoiceOverTranslationPatch {
         // Video state can be null until the overlay is activated the first time.
         if (state != null && state != VideoState.PLAYING) {
             Logger.printDebug(() -> "Ignoring TTS for video state: " + state);
+            YandexAudioEngine.INSTANCE.pause();
             return; // paused, ended, or loading
         }
         if ("yandex".equals(Settings.VOT_TRANSLATION_SERVICE.get())) {
@@ -429,7 +436,9 @@ public class VoiceOverTranslationPatch {
     /** Applies the current voice volume setting to the active playback. */
     public static void updatePlaybackVolume() {
         Utils.verifyOnMainThread();
-        ttsEngine.setVolume(Settings.VOT_TRANSLATION_VOLUME.get() / 100.0f);
+        float vol = Settings.VOT_TRANSLATION_VOLUME.get() / 100.0f;
+        ttsEngine.setVolume(vol);
+        YandexAudioEngine.INSTANCE.setVolume(vol);
     }
 
     /** Re-applies the ducking multiplier so a Settings change takes effect immediately. */
@@ -944,6 +953,7 @@ public class VoiceOverTranslationPatch {
         isTestSpeaking = false;
         ttsEngine.stop();
         if (tts != null) tts.stop();
+        YandexAudioEngine.INSTANCE.stop();
         lastSpokenIndex = -1;
         ttsEndVideoTimeMs = 0;
         scheduledCheckForSegmentStartMs = -1;
