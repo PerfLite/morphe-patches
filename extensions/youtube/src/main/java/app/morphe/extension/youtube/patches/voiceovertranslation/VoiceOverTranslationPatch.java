@@ -489,9 +489,16 @@ public class VoiceOverTranslationPatch {
                 if ("yandex".equals(loadService)) {
                     String videoUrl = "https://youtu.be/" + videoId;
                     double duration = VideoInformation.getVideoLength() / 1000.0;
+                    boolean preferLively = Settings.VOT_YANDEX_LIVELY_VOICE.get();
                     app.morphe.extension.youtube.patches.voiceovertranslation.yandex.Vtrans.VideoTranslationResponse response = 
-                        YandexTranslationService.translate(videoUrl, "en", loadLang, duration);
+                        YandexTranslationService.translate(videoUrl, "en", loadLang, duration, preferLively);
                     
+                    if (preferLively && (response == null || response.getResponseStatusValue() == 0 /* ERROR */)) {
+                        Logger.printDebug(() -> "Lively voice not available for this video, falling back to standard voice");
+                        response = YandexTranslationService.translate(videoUrl, "en", loadLang, duration, false);
+                        Utils.showToastShort("Живой голос недоступен для этого видео, включена стандартная озвучка");
+                    }
+
                     int retries = 0;
                     while (retries < 60) {
                         if (response != null && response.getResponseStatusValue() == 1 /* SUCCESS */) {
@@ -512,7 +519,7 @@ public class VoiceOverTranslationPatch {
                             } catch (InterruptedException e) {
                                 break;
                             }
-                            response = YandexTranslationService.translate(videoUrl, "en", resolveTargetLang(), 0);
+                            response = YandexTranslationService.translate(videoUrl, "en", resolveTargetLang(), 0, false);
                         } else {
                             Logger.printException(() -> "Yandex translation failed or returned unknown status");
                             break;
