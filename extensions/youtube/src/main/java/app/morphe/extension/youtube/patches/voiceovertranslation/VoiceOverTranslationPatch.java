@@ -502,7 +502,7 @@ public class VoiceOverTranslationPatch {
                     app.morphe.extension.youtube.patches.voiceovertranslation.yandex.Vtrans.VideoTranslationResponse response = 
                         YandexTranslationService.translate(videoUrl, "en", loadLang, duration, preferLively);
                     
-                    if (preferLively && (response == null || response.getResponseStatusValue() == 0 /* ERROR */)) {
+                    if (preferLively && (response == null || (response.getResponseStatusValue() != 1 && response.getResponseStatusValue() != 2 && response.getResponseStatusValue() != 3))) {
                         Logger.printDebug(() -> "Lively voice not available for this video, falling back to standard voice");
                         response = YandexTranslationService.translate(videoUrl, "en", loadLang, duration, false);
                         Utils.showToastShort("Живой голос недоступен для этого видео, включена стандартная озвучка");
@@ -516,7 +516,7 @@ public class VoiceOverTranslationPatch {
                             break;
                         }
 
-                        if (response != null && response.getResponseStatusValue() == 1 /* SUCCESS */) {
+                        if (response != null && (response.getResponseStatusValue() == 1 /* FINISHED */ || (response.getTranslationUrl() != null && !response.getTranslationUrl().isEmpty()))) {
                             final String audioUrl = response.getTranslationUrl();
                             Utils.runOnMainThread(() -> {
                                 if (videoId.equals(currentVideoId) && loadLang.equals(resolveTargetLang()) 
@@ -528,10 +528,10 @@ public class VoiceOverTranslationPatch {
                                 }
                             });
                             break;
-                        } else if (response != null && response.getResponseStatusValue() == 2 /* WORK_IN_PROGRESS */) {
+                        } else if (response != null && (response.getResponseStatusValue() == 2 /* WAITING */ || response.getResponseStatusValue() == 3 /* LONG_WAITING */)) {
                             Logger.printDebug(() -> "Yandex translation is work in progress. Waiting...");
                             try {
-                                Thread.sleep(10000); // Wait 10 seconds before polling again
+                                Thread.sleep(7000);
                             } catch (InterruptedException e) {
                                 break;
                             }
@@ -540,13 +540,17 @@ public class VoiceOverTranslationPatch {
                                 Logger.printDebug(() -> "Aborting Yandex polling after sleep: video changed or session inactive");
                                 break;
                             }
-                            response = YandexTranslationService.translate(videoUrl, "en", resolveTargetLang(), 0, false);
+                            retries++;
+                            response = YandexTranslationService.translate(videoUrl, "en", resolveTargetLang(), duration, false);
                         } else {
-                            Logger.printException(() -> "Yandex translation failed or returned unknown status");
+                            final int statusVal = response != null ? response.getResponseStatusValue() : -1;
+                            Logger.printDebug(() -> "Yandex audio translation not ready (status=" + statusVal + "), falling back to subtitles TTS");
                             break;
                         }
                     }
-                    return;
+                    if (response != null && response.getResponseStatusValue() == 1) {
+                        return;
+                    }
                 }
 
                 // Later translation batches arrive asynchronously; swap the list in only

@@ -1,7 +1,7 @@
 {
-  "created_at": "2026-08-17T17:15:00",
-  "description": "## 1.40.0\n\n### ✨ New Features & Improvements\n\n* **YouTube - Voice-Over Translation:** Fully enabled Yandex Lively Voice (эмоциональный / живой голос) support by providing capability flags (v2 audio synthesis) in protobuf request.",
-  "download_url": "https://github.com/PerfLite/morphe-patches/releases/download/v1.40.0/patches-1.40.0.mpp",
+  "created_at": "2026-08-17T17:28:00",
+  "description": "## 1.40.1\n\n### 🐛 Bug Fixes\n\n* **YouTube - Voice-Over Translation:** Handled all Yandex API response statuses (WAITING, LONG_WAITING, AUDIO_REQUESTED) and added automatic fallback to subtitle TTS to prevent error toasts.",
+  "download_url": "https://github.com/PerfLite/morphe-patches/releases/download/v1.40.1/patches-1.40.1.mpp",
   "signature_download_url": "",
-  "version": "1.40.0"
+  "version": "1.40.1"
 }

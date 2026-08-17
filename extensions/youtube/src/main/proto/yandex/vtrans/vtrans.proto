@@ -35,9 +35,12 @@ message VideoTranslationRequest {
 }
 
 enum VideoTranslationResponseStatus {
-  ERROR = 0;
-  SUCCESS = 1;
-  WORK_IN_PROGRESS = 2;
+  FAILED = 0;
+  FINISHED = 1;
+  WAITING = 2;
+  LONG_WAITING = 3;
+  PART_CONTENT = 5;
+  AUDIO_REQUESTED = 6;
 }
 
 message VideoTranslationResponse {
@@ -46,4 +49,5 @@ message VideoTranslationResponse {
   int32 remaining_time = 5;
   VideoTranslationResponseStatus response_status = 4;
   string response_message = 9;
+  bool is_lively_voice = 10;
 }
