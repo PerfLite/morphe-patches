@@ -225,22 +225,18 @@ public class VoiceOverTranslationPatch {
             }
 
             if (state == VideoState.PAUSED) {
-                // System TTS has no pause API, so fall back to stop+restart for it.
-                // Edge TTS pauses in place to avoid restarting the segment and re-arming
-                // audio focus (which would clip the first frames after resume).
-                if (tts != null && tts.isSpeaking()) {
-                    Logger.printDebug(() -> "Stopping system TTS for video state: " + state);
+                Logger.printDebug(() -> "Stopping TTS for video state PAUSED");
+                stopTts();
+            } else if (state == VideoState.PLAYING) {
+                PlayerType currentType = PlayerType.getCurrent();
+                if (!Settings.VOT_ENABLED.get() || !sessionEnabled || ShortsPlayerState.isOpen() || currentType.isNoneOrHidden()) {
                     stopTts();
                 } else {
-                    Logger.printDebug(() -> "Pausing Edge TTS for video state: " + state);
-                    ttsEngine.pause();
+                    ttsEngine.resume();
                 }
-            } else if (state == VideoState.PLAYING) {
-                ttsEngine.resume();
             } else if (state == VideoState.ENDED) {
-                Logger.printDebug(() -> "Stopping TTS prefetch and abandoning ducking: " + state);
-                // Do not stop TTS to allow any currently playing TTS to finish.
-                VotOriginalVolumePatch.clearAudioMultiplier();
+                Logger.printDebug(() -> "Stopping TTS for video state ENDED");
+                stopTts();
                 TtsPrefetcher.clear();
             }
             return kotlin.Unit.INSTANCE;
@@ -267,7 +263,10 @@ public class VoiceOverTranslationPatch {
         httpErrorDialogShownThisVideo = false;
 
         if (!Settings.VOT_ENABLED.get() || !sessionEnabled) return;
-        if (PlayerType.getCurrent() == PlayerType.INLINE_MINIMAL) return;
+        if (ShortsPlayerState.isOpen() || PlayerType.getCurrent().isNoneOrHidden() || PlayerType.getCurrent() == PlayerType.INLINE_MINIMAL) {
+            Logger.printDebug(() -> "Skipping translation in newVideoLoaded for Shorts/hidden player: " + videoId);
+            return;
+        }
         TtsPrefetcher.updateVideo(videoId, segments);
         loadTranscript(videoId);
 
@@ -557,7 +556,9 @@ public class VoiceOverTranslationPatch {
                         videoId,
                         updated -> {
                             Utils.verifyOnMainThread();
-                            if (videoId.equals(currentVideoId) && loadLang.equals(resolveTargetLang())) {
+                            if (videoId.equals(currentVideoId) && loadLang.equals(resolveTargetLang())
+                                    && sessionEnabled && Settings.VOT_ENABLED.get()
+                                    && !ShortsPlayerState.isOpen() && !PlayerType.getCurrent().isNoneOrHidden()) {
                                 // If the segment we last started speaking had its text replaced
                                 // by a freshly-arrived translation, stop and let videoTimeChanged
                                 // re-speak it with the translated text on the next tick.
@@ -568,13 +569,22 @@ public class VoiceOverTranslationPatch {
                                     stopTts();
                                 }
                                 segments = updated;
+                                notifyStateChanged();
                             }
                         },
-                        () -> {
-                            Utils.verifyOnMainThread();
-                            return !videoId.equals(currentVideoId)
-                                    || VideoState.getCurrent() == VideoState.ENDED;
-                        });
+                        () -> !videoId.equals(currentVideoId) || !sessionEnabled 
+                                || ShortsPlayerState.isOpen() || PlayerType.getCurrent().isNoneOrHidden()
+                                || VideoState.getCurrent() == VideoState.ENDED);
+
+                // If the video is already in the target language (e.g. Russian video and target is Russian), do NOT speak TTS!
+                if (!TranscriptFetcher.isSpokenLanguageDifferent(loadLang, TranscriptFetcher.lastSourceLang)) {
+                    Logger.printDebug(() -> "Video is already in target language (" + TranscriptFetcher.lastSourceLang + "), skipping TTS");
+                    Utils.runOnMainThread(() -> {
+                        segments = new ArrayList<>();
+                        notifyStateChanged();
+                    });
+                    return;
+                }
 
                 Utils.runOnMainThread(() -> {
                     if (videoId.equals(currentVideoId) && loadLang.equals(resolveTargetLang())) {

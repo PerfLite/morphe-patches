@@ -1,7 +1,7 @@
 {
-  "created_at": "2026-08-17T16:34:00",
-  "description": "## 1.39.8\n\n### 🐛 Bug Fixes\n\n* **YouTube - Voice-Over Translation:** Fully terminate and cancel background translation polling and MediaPlayer when YouTube is minimized, closed, or switched to Shorts.",
-  "download_url": "https://github.com/PerfLite/morphe-patches/releases/download/v1.39.8/patches-1.39.8.mpp",
+  "created_at": "2026-08-17T17:00:00",
+  "description": "## 1.39.9\n\n### 🐛 Bug Fixes\n\n* **YouTube - Voice-Over Translation:** Fully prevent TTS audio from executing on Shorts and Russian native videos, and ensure all audio stops immediately on pause, close, or switch.",
+  "download_url": "https://github.com/PerfLite/morphe-patches/releases/download/v1.39.9/patches-1.39.9.mpp",
   "signature_download_url": "",
-  "version": "1.39.8"
+  "version": "1.39.9"
 }
