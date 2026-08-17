@@ -406,6 +406,10 @@ public class VoiceOverTranslationPatch {
         return sessionEnabled;
     }
 
+    public static boolean isLoading() {
+        return isLoading;
+    }
+
     /** Flips the session enabled flag and either stops TTS or kicks off transcript loading. */
     public static void toggleTranslation() {
         Utils.verifyOnMainThread();
@@ -490,6 +494,7 @@ public class VoiceOverTranslationPatch {
         Utils.verifyOnMainThread();
         if (isLoading) return;
         isLoading = true;
+        notifyStateChanged();
         final String loadLang = resolveTargetLang();
         final String loadService = Settings.VOT_TRANSLATION_SERVICE.get();
 
@@ -518,6 +523,9 @@ public class VoiceOverTranslationPatch {
 
                         if (response != null && (response.getResponseStatusValue() == 1 /* FINISHED */ || (response.getTranslationUrl() != null && !response.getTranslationUrl().isEmpty()))) {
                             final String audioUrl = response.getTranslationUrl();
+                            if (retries > 0) {
+                                Utils.showToastShort("✨ Озвучка готова!");
+                            }
                             Utils.runOnMainThread(() -> {
                                 if (videoId.equals(currentVideoId) && loadLang.equals(resolveTargetLang()) 
                                         && sessionEnabled && Settings.VOT_ENABLED.get() 
@@ -530,6 +538,21 @@ public class VoiceOverTranslationPatch {
                             break;
                         } else if (response != null && (response.getResponseStatusValue() == 2 /* WAITING */ || response.getResponseStatusValue() == 3 /* LONG_WAITING */)) {
                             Logger.printDebug(() -> "Yandex translation is work in progress. Waiting...");
+                            if (retries == 0) {
+                                int remaining = response.getRemainingTime();
+                                String msg = response.getResponseMessage();
+                                if (msg != null && !msg.trim().isEmpty()) {
+                                    Utils.showToastShort("⏳ " + msg);
+                                } else if (remaining > 0) {
+                                    if (remaining >= 60) {
+                                        Utils.showToastShort("⏳ Яндекс генерирует озвучку (~" + (remaining / 60) + " мин)");
+                                    } else {
+                                        Utils.showToastShort("⏳ Яндекс генерирует озвучку (~" + remaining + " сек)");
+                                    }
+                                } else {
+                                    Utils.showToastShort("⏳ Яндекс генерирует озвучку...");
+                                }
+                            }
                             try {
                                 Thread.sleep(7000);
                             } catch (InterruptedException e) {

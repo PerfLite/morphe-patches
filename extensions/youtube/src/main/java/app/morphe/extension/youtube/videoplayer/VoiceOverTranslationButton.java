@@ -8,6 +8,9 @@
 package app.morphe.extension.youtube.videoplayer;
 
 import android.view.View;
+import android.view.animation.AccelerateDecelerateInterpolator;
+import android.view.animation.AlphaAnimation;
+import android.view.animation.Animation;
 import android.widget.ImageView;
 
 import androidx.annotation.Nullable;
@@ -84,14 +87,37 @@ public final class VoiceOverTranslationButton {
         }
     }
 
+    private static void applyLoadingOrActiveState(ImageView view, boolean isEnabled, boolean isLoading) {
+        if (view == null) return;
+        if (isEnabled && isLoading) {
+            if (view.getAnimation() == null) {
+                view.setImageAlpha(255);
+                AlphaAnimation pulse = new AlphaAnimation(0.25f, 1.0f);
+                pulse.setDuration(450);
+                pulse.setRepeatMode(Animation.REVERSE);
+                pulse.setRepeatCount(Animation.INFINITE);
+                pulse.setInterpolator(new AccelerateDecelerateInterpolator());
+                view.startAnimation(pulse);
+            }
+        } else {
+            if (view.getAnimation() != null) {
+                view.clearAnimation();
+            }
+            view.setImageAlpha(isEnabled ? 255 : 128);
+        }
+    }
+
     private static void refreshActivatedState() {
         Utils.verifyOnMainThread();
         try {
-            final int alpha = VoiceOverTranslationPatch.isSessionEnabled() ? 255 : 128;
+            final boolean isEnabled = VoiceOverTranslationPatch.isSessionEnabled();
+            final boolean isLoading = VoiceOverTranslationPatch.isLoading();
+            final int alpha = isEnabled ? 255 : 128;
+
             WeakReference<ImageView> ref = overlayButtonRef;
             ImageView overlay = ref != null ? ref.get() : null;
             if (overlay != null) {
-                overlay.setImageAlpha(alpha);
+                applyLoadingOrActiveState(overlay, isEnabled, isLoading);
             }
             LegacyPlayerControlButton leg = legacy;
             if (leg != null) {
