@@ -106,13 +106,23 @@ public class YandexTranslationService {
                     ? originalLanguage.split("-")[0].toLowerCase()
                     : (originalLanguage != null ? originalLanguage.toLowerCase() : "en");
 
+            // Lively Voice is only allowed by Yandex when:
+            // 1. The target (response) language is "ru"
+            // 2. The source language is not "auto" (if it is "auto" and target is "ru", VOT maps it to "en")
+            // This mirrors the logic in vot.user.js: getRequestLangForTranslation + isLivelyVoiceAllowed
+            boolean wantsLivelyVoice = app.morphe.extension.youtube.settings.Settings.VOT_YANDEX_LIVELY_VOICE.get();
+            if (wantsLivelyVoice && "auto".equals(origLang) && "ru".equals(targetLang)) {
+                origLang = "en"; // Yandex requires explicit source lang for lively voice
+            }
+            boolean useLivelyVoice = wantsLivelyVoice && "ru".equals(targetLang) && !"auto".equals(origLang);
+
             VideoTranslationRequest request = VideoTranslationRequest.newBuilder()
                     .setOriginalUrl(videoUrl)
                     .setOriginalLanguage(origLang)
                     .setTranslationLanguage(targetLang)
                     .setOriginalDuration(originalDuration > 0 ? originalDuration : 310.0)
                     .setIsFirstRequest(true)
-                    .setUseLivelyVoice(app.morphe.extension.youtube.settings.Settings.VOT_YANDEX_LIVELY_VOICE.get())
+                    .setUseLivelyVoice(useLivelyVoice)
                     .build();
 
             byte[] requestBody = request.toByteArray();
