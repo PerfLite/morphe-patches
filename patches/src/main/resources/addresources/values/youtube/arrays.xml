@@ -653,11 +653,13 @@
     </string-array>
     <string-array name="morphe_vot_translation_service_entries">
         <item>@string/morphe_vot_service_google</item>
+        <item>@string/morphe_vot_service_yandex</item>
         <item>@string/morphe_vot_service_openrouter</item>
         <item>@string/morphe_vot_service_mymemory</item>
     </string-array>
     <string-array name="morphe_vot_translation_service_entry_values">
         <item>google</item>
+        <item>yandex</item>
         <item>openrouter</item>
         <item>mymemory</item>
     </string-array>

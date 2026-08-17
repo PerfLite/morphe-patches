@@ -183,6 +183,7 @@ public class VoiceOverTranslationPatch {
                     && playerType != PlayerType.WATCH_WHILE_SLIDING_MINIMIZED_MAXIMIZED) {
                 Logger.printDebug(() -> "Stopping TTS for player type: " + playerType);
                 stopTts();
+                YandexAudioEngine.INSTANCE.stop();
                 if (playerType == PlayerType.NONE) {
                     currentVideoId = "";
                     segments = new ArrayList<>();
@@ -193,6 +194,17 @@ public class VoiceOverTranslationPatch {
         });
 
         VideoState.getOnChange().addObserver(state -> {
+            if ("yandex".equals(Settings.VOT_TRANSLATION_SERVICE.get())) {
+                if (state == VideoState.PAUSED) {
+                    YandexAudioEngine.INSTANCE.pause();
+                } else if (state == VideoState.PLAYING) {
+                    YandexAudioEngine.INSTANCE.play(VideoInformation.getVideoTime());
+                } else if (state == VideoState.ENDED) {
+                    YandexAudioEngine.INSTANCE.stop();
+                }
+                return kotlin.Unit.INSTANCE;
+            }
+
             if (state == VideoState.PAUSED) {
                 // System TTS has no pause API, so fall back to stop+restart for it.
                 // Edge TTS pauses in place to avoid restarting the segment and re-arming
@@ -280,8 +292,10 @@ public class VoiceOverTranslationPatch {
             Logger.printDebug(() -> "Ignoring TTS for video state: " + state);
             return; // paused, ended, or loading
         }
-
-        TtsPrefetcher.updateTime(timeMs);
+        if ("yandex".equals(Settings.VOT_TRANSLATION_SERVICE.get())) {
+            YandexAudioEngine.INSTANCE.play(timeMs);
+            return;
+        }
 
         final long prevVideoTimeMs = lastVideoTimeMs;
         lastVideoTimeMs = timeMs;
@@ -463,6 +477,40 @@ public class VoiceOverTranslationPatch {
 
         Utils.runOnBackgroundThread(() -> {
             try {
+                if ("yandex".equals(loadService)) {
+                    String videoUrl = "https://www.youtube.com/watch?v=" + videoId;
+                    app.morphe.extension.youtube.patches.voiceovertranslation.yandex.Vtrans.VideoTranslationResponse response = 
+                        YandexTranslationService.translate(videoUrl, "en", resolveTargetLang(), 0);
+                    
+                    int retries = 0;
+                    while (retries < 60) {
+                        if (response != null && response.getResponseStatusValue() == 1 /* SUCCESS */) {
+                            String audioUrl = response.getTranslationUrl();
+                            YandexAudioEngine.INSTANCE.prepare(audioUrl);
+                            
+                            Utils.runOnMainThread(() -> {
+                                if (videoId.equals(currentVideoId) && loadLang.equals(resolveTargetLang())) {
+                                    segments = new ArrayList<>(); // clear segments so TTS doesn't play
+                                    notifyStateChanged();
+                                }
+                            });
+                            break;
+                        } else if (response != null && response.getResponseStatusValue() == 2 /* WORK_IN_PROGRESS */) {
+                            Logger.printDebug(() -> "Yandex translation is work in progress. Waiting...");
+                            try {
+                                Thread.sleep(10000); // Wait 10 seconds before polling again
+                            } catch (InterruptedException e) {
+                                break;
+                            }
+                            response = YandexTranslationService.translate(videoUrl, "en", resolveTargetLang(), 0);
+                        } else {
+                            Logger.printException(() -> "Yandex translation failed or returned unknown status");
+                            break;
+                        }
+                    }
+                    return;
+                }
+
                 // Later translation batches arrive asynchronously; swap the list in only
                 // while the same video is still playing. Timings and size are identical
                 // across updates, so lastSpokenIndex stays valid.
@@ -705,6 +753,10 @@ public class VoiceOverTranslationPatch {
         final float current = VideoInformation.getPlaybackSpeed();
         if (current == lastAppliedPlaybackSpeed) return;
         lastAppliedPlaybackSpeed = current;
+        if ("yandex".equals(Settings.VOT_TRANSLATION_SERVICE.get())) {
+            YandexAudioEngine.INSTANCE.setSpeed(current);
+            return;
+        }
         ttsEngine.setPlaybackRate(currentTtsBaseRate * current);
     }
 

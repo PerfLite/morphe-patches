@@ -221,10 +221,11 @@ public final class VotBottomSheet {
     private static void showTranslationServicePicker(Context context, SheetBottomDialog.SlideDialog mainDialog) {
         String[] entries = {
                 str("morphe_vot_service_google"),
+                str("morphe_vot_service_yandex"),
                 str("morphe_vot_service_mymemory"),
                 str("morphe_vot_service_openrouter")
         };
-        String[] values = { TRANSLATION_SERVICE_GOOGLE, TRANSLATION_SERVICE_MY_MEMORY, TRANSLATION_SERVICE_OPENROUTER };
+        String[] values = { TRANSLATION_SERVICE_GOOGLE, "yandex", TRANSLATION_SERVICE_MY_MEMORY, TRANSLATION_SERVICE_OPENROUTER };
 
         SheetBottomDialog.DraggableLinearLayout pickerRoot =
                 SheetBottomDialog.createMainLayout(context, getDialogBackgroundColor());
