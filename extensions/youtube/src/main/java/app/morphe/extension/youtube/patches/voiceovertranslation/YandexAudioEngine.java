@@ -100,16 +100,20 @@ public class YandexAudioEngine {
     
     public void stop() {
         Utils.runOnMainThread(() -> {
+            isPrepared = false;
+            currentUrl = null;
             if (mediaPlayer != null) {
                 try {
-                    mediaPlayer.stop();
+                    if (mediaPlayer.isPlaying()) {
+                        mediaPlayer.pause();
+                        mediaPlayer.stop();
+                    }
+                    mediaPlayer.reset();
                     mediaPlayer.release();
                 } catch (Exception e) {
                     Logger.printException(() -> "Failed to stop Yandex audio", e);
                 }
                 mediaPlayer = null;
-                isPrepared = false;
-                currentUrl = null;
                 VotOriginalVolumePatch.clearAudioMultiplier();
             }
         });

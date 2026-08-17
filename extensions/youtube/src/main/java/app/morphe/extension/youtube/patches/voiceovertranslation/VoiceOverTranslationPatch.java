@@ -39,6 +39,7 @@ import app.morphe.extension.shared.ui.CustomDialog;
 import app.morphe.extension.youtube.patches.VideoInformation;
 import app.morphe.extension.youtube.settings.Settings;
 import app.morphe.extension.youtube.shared.PlayerType;
+import app.morphe.extension.youtube.shared.ShortsPlayerState;
 import app.morphe.extension.youtube.shared.VideoState;
 
 /**
@@ -193,13 +194,25 @@ public class VoiceOverTranslationPatch {
             return kotlin.Unit.INSTANCE;
         });
 
+        ShortsPlayerState.getOnChange().addObserver(isOpen -> {
+            if (isOpen) {
+                Logger.printDebug(() -> "Shorts opened, stopping translation audio");
+                stopTts();
+                YandexAudioEngine.INSTANCE.stop();
+                currentVideoId = "";
+                segments = new ArrayList<>();
+                TtsPrefetcher.clear();
+            }
+            return kotlin.Unit.INSTANCE;
+        });
+
         VideoState.getOnChange().addObserver(state -> {
             if ("yandex".equals(Settings.VOT_TRANSLATION_SERVICE.get())) {
                 if (state == VideoState.PAUSED) {
                     YandexAudioEngine.INSTANCE.pause();
                 } else if (state == VideoState.PLAYING) {
                     PlayerType currentType = PlayerType.getCurrent();
-                    if (Settings.VOT_ENABLED.get() && sessionEnabled 
+                    if (Settings.VOT_ENABLED.get() && sessionEnabled && !ShortsPlayerState.isOpen()
                             && (currentType.isMaximizedOrFullscreen() || currentType == PlayerType.WATCH_WHILE_MINIMIZED || currentType == PlayerType.WATCH_WHILE_PICTURE_IN_PICTURE)) {
                         YandexAudioEngine.INSTANCE.play(VideoInformation.getVideoTime());
                     } else {
@@ -498,12 +511,19 @@ public class VoiceOverTranslationPatch {
 
                     int retries = 0;
                     while (retries < 60) {
+                        if (!videoId.equals(currentVideoId) || !sessionEnabled || !Settings.VOT_ENABLED.get() 
+                                || PlayerType.getCurrent().isNoneOrHidden() || ShortsPlayerState.isOpen()) {
+                            Logger.printDebug(() -> "Aborting Yandex translation polling: video changed or session inactive");
+                            break;
+                        }
+
                         if (response != null && response.getResponseStatusValue() == 1 /* SUCCESS */) {
-                            String audioUrl = response.getTranslationUrl();
-                            YandexAudioEngine.INSTANCE.prepare(audioUrl);
-                            
+                            final String audioUrl = response.getTranslationUrl();
                             Utils.runOnMainThread(() -> {
-                                if (videoId.equals(currentVideoId) && loadLang.equals(resolveTargetLang())) {
+                                if (videoId.equals(currentVideoId) && loadLang.equals(resolveTargetLang()) 
+                                        && sessionEnabled && Settings.VOT_ENABLED.get() 
+                                        && !PlayerType.getCurrent().isNoneOrHidden() && !ShortsPlayerState.isOpen()) {
+                                    YandexAudioEngine.INSTANCE.prepare(audioUrl);
                                     segments = new ArrayList<>(); // clear segments so TTS doesn't play
                                     notifyStateChanged();
                                 }
@@ -514,6 +534,11 @@ public class VoiceOverTranslationPatch {
                             try {
                                 Thread.sleep(10000); // Wait 10 seconds before polling again
                             } catch (InterruptedException e) {
+                                break;
+                            }
+                            if (!videoId.equals(currentVideoId) || !sessionEnabled || !Settings.VOT_ENABLED.get() 
+                                    || PlayerType.getCurrent().isNoneOrHidden() || ShortsPlayerState.isOpen()) {
+                                Logger.printDebug(() -> "Aborting Yandex polling after sleep: video changed or session inactive");
                                 break;
                             }
                             response = YandexTranslationService.translate(videoUrl, "en", resolveTargetLang(), 0, false);
@@ -952,11 +977,14 @@ public class VoiceOverTranslationPatch {
     }
 
     private static void stopTtsInternal() {
-        Utils.verifyOnMainThread();
         Logger.printDebug(() -> "stopTts");
         isTestSpeaking = false;
         ttsEngine.stop();
-        if (tts != null) tts.stop();
+        if (tts != null) {
+            try {
+                tts.stop();
+            } catch (Exception ignored) {}
+        }
         YandexAudioEngine.INSTANCE.stop();
         lastSpokenIndex = -1;
         ttsEndVideoTimeMs = 0;
