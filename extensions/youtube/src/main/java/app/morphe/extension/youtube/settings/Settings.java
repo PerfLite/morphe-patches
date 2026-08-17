@@ -568,6 +568,7 @@ public class Settings extends SharedYouTubeSettings {
     public static final StringSetting VOT_OPENROUTER_MODEL = new StringSetting("morphe_vot_openrouter_model", "mistralai/mistral-nemo", new OpenRouterServiceAvailability());
     public static final StringSetting VOT_MYMEMORY_EMAIL = new StringSetting("morphe_vot_mymemory_email", "", new MyMemoryServiceAvailability());
     public static final BooleanSetting VOT_USE_NATIVE_TTS = new BooleanSetting("morphe_vot_use_native_tts", FALSE, parent(VOT_ENABLED));
+    public static final BooleanSetting VOT_YANDEX_LIVELY_VOICE = new BooleanSetting("morphe_vot_yandex_lively_voice", FALSE, parent(VOT_ENABLED));
     public static final BooleanSetting VOT_SHOW_HTTP_ERROR_DIALOG = new BooleanSetting("morphe_vot_show_http_error_dialog", TRUE);
     public static final BooleanSetting VOT_HIDE_EXPORT_WARNING = new BooleanSetting("morphe_vot_hide_export_warning", FALSE, false, false);
 

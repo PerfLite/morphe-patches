@@ -79,6 +79,13 @@ public class YandexTranslationService {
         }
     }
 
+    /** Invalidates the cached session so the next translate() call creates a fresh one. */
+    public static synchronized void resetSession() {
+        cachedSecretKey = null;
+        cachedUuid = null;
+        sessionExpiryTimeMs = 0;
+    }
+
     public static VideoTranslationResponse translate(String videoUrl, String originalLanguage, String translationLanguage, double originalDuration) {
         try {
             String[] session = getOrRenewSession();
@@ -105,6 +112,7 @@ public class YandexTranslationService {
                     .setTranslationLanguage(targetLang)
                     .setOriginalDuration(originalDuration > 0 ? originalDuration : 310.0)
                     .setIsFirstRequest(true)
+                    .setUseLivelyVoice(app.morphe.extension.youtube.settings.Settings.VOT_YANDEX_LIVELY_VOICE.get())
                     .build();
 
             byte[] requestBody = request.toByteArray();

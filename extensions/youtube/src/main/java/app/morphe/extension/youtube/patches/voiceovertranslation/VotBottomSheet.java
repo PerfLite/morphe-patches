@@ -41,6 +41,7 @@ import android.widget.LinearLayout;
 import android.widget.ListView;
 import android.widget.ScrollView;
 import android.widget.SeekBar;
+import android.widget.Switch;
 import android.widget.TextView;
 
 import java.util.ArrayList;
@@ -115,6 +116,17 @@ public final class VotBottomSheet {
         translationRow.setOnClickListener(v -> showTranslationServicePicker(context, mainRef[0]));
         refreshTranslation.run();
 
+        // Lively voice toggle — only meaningful for Yandex, visibility is managed below
+        LinearLayout livelyVoiceRow = makeSwitchRow(context, fg,
+                str("morphe_vot_yandex_lively_voice_title"),
+                Settings.VOT_YANDEX_LIVELY_VOICE.get(),
+                checked -> {
+                    Settings.VOT_YANDEX_LIVELY_VOICE.save(checked);
+                    // Clear session so next translation uses the new flag
+                    YandexTranslationService.resetSession();
+                    VoiceOverTranslationPatch.reloadTranscript();
+                });
+
         TextView title = makeTitle(context, str("morphe_vot_enabled_title"), fg);
         ((LinearLayout.LayoutParams) title.getLayoutParams()).setMargins(Dim.dp16, Dim.dp8, Dim.dp16, Dim.dp16);
         root.addView(title);
@@ -128,6 +140,7 @@ public final class VotBottomSheet {
         content.addView(makeLanguageRow(context, str("morphe_vot_caption_language_title"), fg,
                 langEntries, langValues, mainRef));
         content.addView(translationRow);
+        content.addView(livelyVoiceRow);
         content.addView(engineRow);
         content.addView(makeDivider(context, fg));
         content.addView(makeSliderRow(context,
@@ -151,6 +164,11 @@ public final class VotBottomSheet {
                 Settings.VOT_MAX_SPEECH_RATE,
                 fg,
                 Settings.VOT_MAX_SPEECH_RATE::save));
+
+        // Show lively voice row only when Yandex is the selected provider
+        boolean isYandex = "yandex".equals(Settings.VOT_TRANSLATION_SERVICE.get());
+        livelyVoiceRow.setVisibility(isYandex ? View.VISIBLE : View.GONE);
+        engineRow.setVisibility(isYandex ? View.GONE : View.VISIBLE);
 
         root.addView(scroll);
         SheetBottomDialog.SlideDialog dialog =
@@ -671,6 +689,42 @@ public final class VotBottomSheet {
 
     private static int secondaryColor(int fg) {
         return Color.argb(153, Color.red(fg), Color.green(fg), Color.blue(fg));
+    }
+
+    @SuppressWarnings("deprecation") // Switch is fine on API 21+
+    private static LinearLayout makeSwitchRow(Context context, int fgColor, String label,
+                                               boolean initialValue, BooleanConsumer onChanged) {
+        LinearLayout row = new LinearLayout(context);
+        row.setOrientation(LinearLayout.HORIZONTAL);
+        row.setGravity(Gravity.CENTER_VERTICAL);
+        row.setMinimumHeight(Dim.dp48);
+        row.setLayoutParams(new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT));
+
+        TextView labelView = new TextView(context);
+        labelView.setText(label);
+        labelView.setTextColor(fgColor);
+        labelView.setTextSize(16);
+        labelView.setTypeface(Typeface.DEFAULT_BOLD);
+        labelView.setLayoutParams(new LinearLayout.LayoutParams(
+                0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f));
+        row.addView(labelView);
+
+        Switch sw = new Switch(context);
+        sw.setChecked(initialValue);
+        sw.setThumbTintList(ColorStateList.valueOf(fgColor));
+        sw.setTrackTintList(ColorStateList.valueOf(secondaryColor(fgColor)));
+        sw.setOnCheckedChangeListener((btn, checked) -> onChanged.accept(checked));
+        row.addView(sw);
+
+        // Tapping the row also toggles the switch
+        row.setOnClickListener(v -> sw.toggle());
+        return row;
+    }
+
+    @FunctionalInterface
+    private interface BooleanConsumer {
+        void accept(boolean value);
     }
 
     @FunctionalInterface

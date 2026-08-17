@@ -389,6 +389,7 @@ Tap here to open AiSlopList.com and see downloads for other platforms"</string>
     <string name="morphe_vot_service_google" translatable="false">Google Translate</string>
     <string name="morphe_vot_service_yandex" translatable="false">Yandex</string>
     <string name="morphe_vot_service_mymemory" translatable="false">MyMemory</string>
+    <string name="morphe_vot_yandex_lively_voice_title">Lively voice (Yandex)</string>
     <string name="morphe_vot_mymemory_info_summary">"Free translation API, no API key required. Up to 5,000 characters per day on the free tier, or up to 50,000 characters per day with an email address.
 
 Tap here to open MyMemory.translated.net"</string>

@@ -27,6 +27,7 @@ message VideoTranslationRequest {
   bool is_first_request = 5;
   bool is_help_objects_included = 9;
   repeated VideoTranslationHelpObject help_objects = 10;
+  bool use_lively_voice = 18;
 }
 
 enum VideoTranslationResponseStatus {
