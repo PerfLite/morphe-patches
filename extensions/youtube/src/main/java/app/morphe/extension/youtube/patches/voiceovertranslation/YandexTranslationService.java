@@ -120,6 +120,9 @@ public class YandexTranslationService {
                     .setTranslationLanguage(targetLang)
                     .setOriginalDuration(originalDuration > 0 ? originalDuration : 310.0)
                     .setIsFirstRequest(true)
+                    .setUnknown0(true)
+                    .setUnknown2(true)
+                    .setUnknown3(2)
                     .setUseLivelyVoice(enableLively)
                     .build();
 

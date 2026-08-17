@@ -21,12 +21,16 @@ message VideoTranslationHelpObject {
 
 message VideoTranslationRequest {
   string original_url = 3;
-  string original_language = 8;
-  double original_duration = 6;
-  string translation_language = 14;
   bool is_first_request = 5;
+  double original_duration = 6;
+  bool unknown0 = 7;
+  string original_language = 8;
   bool is_help_objects_included = 9;
   repeated VideoTranslationHelpObject help_objects = 10;
+  string translation_language = 14;
+  bool unknown2 = 15;
+  int32 unknown3 = 16;
+  bool bypass_cache = 17;
   bool use_lively_voice = 18;
 }
 
