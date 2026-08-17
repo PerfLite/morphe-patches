@@ -419,6 +419,12 @@ public class VoiceOverTranslationPatch {
             stopTts();
             lastSpokenIndex = -1;
         } else {
+            if (VideoState.getCurrent() != VideoState.PLAYING) {
+                stopTts();
+                lastSpokenIndex = -1;
+            } else {
+                videoTimeChanged(VideoInformation.getVideoTime());
+            }
             if (!currentVideoId.isEmpty() && segments.isEmpty() && !isLoading) {
                 loadTranscript(currentVideoId);
             }
@@ -631,6 +637,7 @@ public class VoiceOverTranslationPatch {
             } finally {
                 Utils.runOnMainThread(() -> {
                     isLoading = false;
+                    notifyStateChanged();
                     // Restart if the video, language, or translation provider changed while this fetch was in flight.
                     if (!currentVideoId.isEmpty() && Settings.VOT_ENABLED.get()
                             && (!currentVideoId.equals(videoId)
@@ -800,6 +807,10 @@ public class VoiceOverTranslationPatch {
             final byte[] finalData = data;
             Utils.runOnMainThread(() -> {
                 if (finalData.length > 0 && playbackId == ttsEngine.getPlaybackId()) {
+                    if (VideoState.getCurrent() != VideoState.PLAYING) {
+                        Logger.printDebug(() -> "Dropping TTS playback because video is not PLAYING (state=" + VideoState.getCurrent() + ")");
+                        return;
+                    }
                     // Re-read playback speed in case it changed during synthesis.
                     final float playbackRateNow = rate * VideoInformation.getPlaybackSpeed();
                     ttsEngine.play(finalData, volume, playbackRateNow, startTimeMsSnapshot, playbackId,

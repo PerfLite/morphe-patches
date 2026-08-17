@@ -49,6 +49,11 @@ public class YandexAudioEngine {
                     // Apply saved volume/speed
                     setVolume(currentVolume);
                     setSpeed(currentSpeed);
+                    if (app.morphe.extension.youtube.shared.VideoState.getCurrent() == app.morphe.extension.youtube.shared.VideoState.PLAYING) {
+                        play(app.morphe.extension.youtube.patches.VideoInformation.getVideoTime());
+                    } else {
+                        pause();
+                    }
                 });
                 mediaPlayer.setOnErrorListener((mp, what, extra) -> {
                     Logger.printException(() -> "Yandex MediaPlayer error: " + what + " " + extra);
@@ -64,6 +69,10 @@ public class YandexAudioEngine {
     
     public void play(long videoPositionMs) {
         Utils.runOnMainThread(() -> {
+            if (app.morphe.extension.youtube.shared.VideoState.getCurrent() != app.morphe.extension.youtube.shared.VideoState.PLAYING) {
+                Logger.printDebug(() -> "Skipping Yandex play because video is not PLAYING");
+                return;
+            }
             if (mediaPlayer != null && isPrepared) {
                 try {
                     // Sync position if it differs by more than 500ms

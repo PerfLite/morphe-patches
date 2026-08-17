@@ -7,10 +7,9 @@
 
 package app.morphe.extension.youtube.videoplayer;
 
+import android.animation.ValueAnimator;
 import android.view.View;
 import android.view.animation.AccelerateDecelerateInterpolator;
-import android.view.animation.AlphaAnimation;
-import android.view.animation.Animation;
 import android.widget.ImageView;
 
 import androidx.annotation.Nullable;
@@ -32,6 +31,9 @@ public final class VoiceOverTranslationButton {
 
     @Nullable
     private static WeakReference<ImageView> overlayButtonRef;
+
+    @Nullable
+    private static ValueAnimator pulseAnimator;
 
     /** Injection point. */
     public static void initializeButton(View controlsView) {
@@ -87,41 +89,48 @@ public final class VoiceOverTranslationButton {
         }
     }
 
-    private static void applyLoadingOrActiveState(ImageView view, boolean isEnabled, boolean isLoading) {
-        if (view == null) return;
-        if (isEnabled && isLoading) {
-            if (view.getAnimation() == null) {
-                view.setImageAlpha(255);
-                AlphaAnimation pulse = new AlphaAnimation(0.25f, 1.0f);
-                pulse.setDuration(450);
-                pulse.setRepeatMode(Animation.REVERSE);
-                pulse.setRepeatCount(Animation.INFINITE);
-                pulse.setInterpolator(new AccelerateDecelerateInterpolator());
-                view.startAnimation(pulse);
-            }
-        } else {
-            if (view.getAnimation() != null) {
-                view.clearAnimation();
-            }
-            view.setImageAlpha(isEnabled ? 255 : 128);
-        }
-    }
-
     private static void refreshActivatedState() {
         Utils.verifyOnMainThread();
         try {
             final boolean isEnabled = VoiceOverTranslationPatch.isSessionEnabled();
             final boolean isLoading = VoiceOverTranslationPatch.isLoading();
-            final int alpha = isEnabled ? 255 : 128;
+            final int targetAlpha = isEnabled ? 255 : 128;
 
-            WeakReference<ImageView> ref = overlayButtonRef;
-            ImageView overlay = ref != null ? ref.get() : null;
-            if (overlay != null) {
-                applyLoadingOrActiveState(overlay, isEnabled, isLoading);
-            }
-            LegacyPlayerControlButton leg = legacy;
-            if (leg != null) {
-                leg.setImageAlpha(alpha);
+            if (isEnabled && isLoading) {
+                if (pulseAnimator == null) {
+                    pulseAnimator = ValueAnimator.ofInt(70, 255);
+                    pulseAnimator.setDuration(500);
+                    pulseAnimator.setRepeatMode(ValueAnimator.REVERSE);
+                    pulseAnimator.setRepeatCount(ValueAnimator.INFINITE);
+                    pulseAnimator.setInterpolator(new AccelerateDecelerateInterpolator());
+                    pulseAnimator.addUpdateListener(anim -> {
+                        int val = (int) anim.getAnimatedValue();
+                        WeakReference<ImageView> ref = overlayButtonRef;
+                        ImageView iv = ref != null ? ref.get() : null;
+                        if (iv != null) {
+                            iv.setImageAlpha(val);
+                        }
+                        LegacyPlayerControlButton leg = legacy;
+                        if (leg != null) {
+                            leg.setImageAlpha(val);
+                        }
+                    });
+                    pulseAnimator.start();
+                }
+            } else {
+                if (pulseAnimator != null) {
+                    pulseAnimator.cancel();
+                    pulseAnimator = null;
+                }
+                WeakReference<ImageView> ref = overlayButtonRef;
+                ImageView iv = ref != null ? ref.get() : null;
+                if (iv != null) {
+                    iv.setImageAlpha(targetAlpha);
+                }
+                LegacyPlayerControlButton leg = legacy;
+                if (leg != null) {
+                    leg.setImageAlpha(targetAlpha);
+                }
             }
         } catch (Exception ex) {
             Logger.printException(() -> "refreshActivatedState failure", ex);
