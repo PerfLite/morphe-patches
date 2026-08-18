@@ -32,10 +32,30 @@ Morphe Patches are based off the prior work of [ReVanced](https://github.com/ReV
 All modifications made by Morphe, along with their dates, can be found in the Git history.
 
 &nbsp;
+## 🎙️ Key Features & Voice-Over Translation (VOT)
+
+This fork includes an advanced **Voice-Over Translation** system bringing seamless, real-time voice dubbing and translation to YouTube videos:
+
+* **⚡ Multi-Engine Translation Support:**
+  * **Yandex Voice Translation (v2):** Full neural voice dubbing with support for **Lively Voice (Живой голос)** with emotional intonations, automatic gender detection, and bilingual tracks.
+  * **Microsoft Edge Neural TTS:** High-quality neural cloud voices with zero latency websocket streaming.
+  * **System TTS:** Offline, built-in device text-to-speech engine.
+* **🛡️ Smart Fallback & Error Resilience:**
+  * Automatically requests server-side audio downloads for uncached videos via Yandex `fail-audio-js` protocol.
+  * Seamlessly falls back to subtitles + neural TTS if audio dubbing is not pre-rendered for a video.
+  * Automatic network retry and stream reconnection if network stalls.
+* **✨ Modern UI & Player Integration:**
+  * Dedicated player overlay button with breathing/pulsing animation during translation synthesis.
+  * Live status toasts with estimated generation remaining time (e.g. `⏳ (~30 сек)` / `✨ Озвучка готова!`).
+  * In-player Bottom Sheet dialog for on-the-fly voice selection, volume balance, and language switching.
+  * Smart ducking that automatically lowers original video volume while translation is speaking.
+  * Strict audio lifecycle management (no sound leaks in background, full Shorts isolation, sync on pause/play).
+
+&nbsp;
 ## 🩹 Patches list
 
 <!-- PATCHES_START -->
-> **[v1.39.6](https://github.com/PerfLite/morphe-patches/releases/tag/v1.39.6)**&nbsp;&nbsp;•&nbsp;&nbsp;`main`&nbsp;&nbsp;•&nbsp;&nbsp;133 patches total
+> **[v1.40.3](https://github.com/PerfLite/morphe-patches/releases/tag/v1.40.3)**&nbsp;&nbsp;•&nbsp;&nbsp;`main`&nbsp;&nbsp;•&nbsp;&nbsp;133 patches total
 <details>
 <summary>📦 YouTube&nbsp;&nbsp;•&nbsp;&nbsp;74 patches</summary>
 <br>
