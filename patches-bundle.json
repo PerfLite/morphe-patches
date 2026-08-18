@@ -1,7 +1,7 @@
 {
-  "created_at": "2026-08-18T17:05:00",
-  "description": "## 1.40.4\n\n### ✨ Improvements\n\n* **YouTube - Voice-Over Translation:** Yandex audio stream now reconnects automatically (bounded retries) when it dies mid-video or fails to prepare.\n* **YouTube - Voice-Over Translation:** Yandex translation is silently re-requested during playback when the audio failed to attach, instead of playing untranslated.\n* **YouTube - Voice-Over Translation:** Network requests now have timeouts and retries, handling the backend requesting source audio (AUDIO_REQUESTED) with the fail-audio-js fallback.",
-  "download_url": "https://github.com/PerfLite/morphe-patches/releases/download/v1.40.4/patches-1.40.4.mpp",
+  "created_at": "2026-08-18T12:54:00",
+  "description": "## 1.40.0\n\n### ✨ Features & Improvements\n\n* **YouTube - Voice-Over Translation:** Complete integration of synchronized real-time voice translation.\n* **Yandex Neural Voice (v2):** Added support for Lively Voice (Живой голос) with emotional intonation, automatic language detection, and fail-audio-js server request handling.\n* **Microsoft Edge TTS & System TTS:** Ultra-fast neural cloud voices via WebSocket streaming and offline device TTS.\n* **Player UI Integration:** Breathing/pulsing loading animation on player translation button, live generation time estimates (`⏳ ~30 сек`), and bottom sheet settings dialog.\n* **Stability & Isolation:** Smart audio ducking, audio isolation for Shorts and background playback, and automatic stream reconnection upon network drop.",
+  "download_url": "https://github.com/PerfLite/morphe-patches/releases/download/v1.40.0/patches-1.40.0.mpp",
   "signature_download_url": "",
-  "version": "1.40.4"
+  "version": "1.40.0"
 }

@@ -55,7 +55,7 @@ This fork includes an advanced **Voice-Over Translation** system bringing seamle
 ## 🩹 Patches list
 
 <!-- PATCHES_START -->
-> **[v1.40.3](https://github.com/PerfLite/morphe-patches/releases/tag/v1.40.3)**&nbsp;&nbsp;•&nbsp;&nbsp;`main`&nbsp;&nbsp;•&nbsp;&nbsp;133 patches total
+> **[v1.40.0](https://github.com/PerfLite/morphe-patches/releases/tag/v1.40.0)**&nbsp;&nbsp;•&nbsp;&nbsp;`main`&nbsp;&nbsp;•&nbsp;&nbsp;133 patches total
 <details>
 <summary>📦 YouTube&nbsp;&nbsp;•&nbsp;&nbsp;74 patches</summary>
 <br>
