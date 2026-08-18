@@ -1,5 +1,7 @@
 package app.morphe.extension.youtube.patches.voiceovertranslation;
 
+import com.google.protobuf.ByteString;
+
 import java.io.ByteArrayOutputStream;
 import java.io.InputStream;
 import java.io.OutputStream;
@@ -12,6 +14,8 @@ import javax.crypto.Mac;
 import javax.crypto.spec.SecretKeySpec;
 
 import app.morphe.extension.shared.Logger;
+import app.morphe.extension.youtube.patches.voiceovertranslation.yandex.Vtrans.AudioBufferObject;
+import app.morphe.extension.youtube.patches.voiceovertranslation.yandex.Vtrans.VideoTranslationAudioRequest;
 import app.morphe.extension.youtube.patches.voiceovertranslation.yandex.Vtrans.VideoTranslationRequest;
 import app.morphe.extension.youtube.patches.voiceovertranslation.yandex.Vtrans.VideoTranslationResponse;
 import app.morphe.extension.youtube.patches.voiceovertranslation.yandex.Vtrans.YandexSessionRequest;
@@ -24,6 +28,12 @@ public class YandexTranslationService {
     private static final String HMAC_KEY = "bt8xH3VOlb4mqf0nqAibnDOoiPlXsisf";
     private static final String COMPONENT_VERSION = "26.6.4.760";
 
+    private static final int CONNECT_TIMEOUT_MS = 15_000;
+    private static final int READ_TIMEOUT_MS = 30_000;
+    // Network requests happen before each API call, so one extra try per call is enough
+    // to ride out transient failures without stalling the polling loop.
+    private static final int MAX_NETWORK_RETRIES = 2;
+
     private static String cachedSecretKey = null;
     private static String cachedUuid = null;
     private static long sessionExpiryTimeMs = 0;
@@ -34,49 +44,54 @@ public class YandexTranslationService {
             return new String[]{cachedUuid, cachedSecretKey};
         }
 
-        try {
-            String rawUuid = UUID.randomUUID().toString().replace("-", "").toLowerCase();
-            YandexSessionRequest sessionReq = YandexSessionRequest.newBuilder()
-                    .setUuid(rawUuid)
-                    .setModule("video-translation")
-                    .build();
+        for (int attempt = 0; attempt <= MAX_NETWORK_RETRIES; attempt++) {
+            if (attempt > 0) sleep(1000L * attempt);
+            try {
+                String rawUuid = UUID.randomUUID().toString().replace("-", "").toLowerCase();
+                YandexSessionRequest sessionReq = YandexSessionRequest.newBuilder()
+                        .setUuid(rawUuid)
+                        .setModule("video-translation")
+                        .build();
 
-            byte[] body = sessionReq.toByteArray();
-            String signature = generateSignature(body);
+                byte[] body = sessionReq.toByteArray();
+                String signature = generateSignature(body);
 
-            URL url = new URL(YANDEX_BASE_URL + "/session/create");
-            HttpURLConnection conn = (HttpURLConnection) url.openConnection();
-            conn.setRequestMethod("POST");
-            conn.setDoOutput(true);
-            conn.setRequestProperty("User-Agent", USER_AGENT);
-            conn.setRequestProperty("Content-Type", "application/x-protobuf");
-            conn.setRequestProperty("Accept", "application/x-protobuf");
-            conn.setRequestProperty("Vtrans-Signature", signature);
+                URL url = new URL(YANDEX_BASE_URL + "/session/create");
+                HttpURLConnection conn = (HttpURLConnection) url.openConnection();
+                conn.setConnectTimeout(CONNECT_TIMEOUT_MS);
+                conn.setReadTimeout(READ_TIMEOUT_MS);
+                conn.setRequestMethod("POST");
+                conn.setDoOutput(true);
+                conn.setRequestProperty("User-Agent", USER_AGENT);
+                conn.setRequestProperty("Content-Type", "application/x-protobuf");
+                conn.setRequestProperty("Accept", "application/x-protobuf");
+                conn.setRequestProperty("Vtrans-Signature", signature);
 
-            try (OutputStream os = conn.getOutputStream()) {
-                os.write(body);
-                os.flush();
+                try (OutputStream os = conn.getOutputStream()) {
+                    os.write(body);
+                    os.flush();
+                }
+
+                int code = conn.getResponseCode();
+                if (code != 200) {
+                    Logger.printException(() -> "Yandex session creation failed with HTTP " + code);
+                    continue;
+                }
+
+                byte[] respBytes = readAllBytes(conn.getInputStream());
+                YandexSessionResponse sessionResp = YandexSessionResponse.parseFrom(respBytes);
+
+                cachedUuid = rawUuid;
+                cachedSecretKey = sessionResp.getSecretKey();
+                int expires = sessionResp.getExpires();
+                sessionExpiryTimeMs = now + ((long) (expires > 0 ? expires : 3600) * 1000) - 60000;
+
+                return new String[]{cachedUuid, cachedSecretKey};
+            } catch (Exception e) {
+                Logger.printException(() -> "Yandex getOrRenewSession error", e);
             }
-
-            int code = conn.getResponseCode();
-            if (code != 200) {
-                Logger.printException(() -> "Yandex session creation failed with HTTP " + code);
-                return null;
-            }
-
-            byte[] respBytes = readAllBytes(conn.getInputStream());
-            YandexSessionResponse sessionResp = YandexSessionResponse.parseFrom(respBytes);
-
-            cachedUuid = rawUuid;
-            cachedSecretKey = sessionResp.getSecretKey();
-            int expires = sessionResp.getExpires();
-            sessionExpiryTimeMs = now + ((long) (expires > 0 ? expires : 3600) * 1000) - 60000;
-
-            return new String[]{cachedUuid, cachedSecretKey};
-        } catch (Exception e) {
-            Logger.printException(() -> "Yandex getOrRenewSession error", e);
-            return null;
         }
+        return null;
     }
 
     /** Invalidates the cached session so the next translate() call creates a fresh one. */
@@ -84,6 +99,14 @@ public class YandexTranslationService {
         cachedSecretKey = null;
         cachedUuid = null;
         sessionExpiryTimeMs = 0;
+    }
+
+    private static void sleep(long ms) {
+        try {
+            Thread.sleep(ms);
+        } catch (InterruptedException ignored) {
+            Thread.currentThread().interrupt();
+        }
     }
 
     public static VideoTranslationResponse translate(String videoUrl, String originalLanguage, String translationLanguage, double originalDuration, boolean useLivelyVoice) {
@@ -133,41 +156,145 @@ public class YandexTranslationService {
             String tokenSignature = generateSignature(tokenPath.getBytes(StandardCharsets.UTF_8));
             String fullToken = tokenSignature + ":" + tokenPath;
 
-            URL url = new URL(YANDEX_BASE_URL + "/video-translation/translate");
-            HttpURLConnection conn = (HttpURLConnection) url.openConnection();
-            conn.setRequestMethod("POST");
-            conn.setDoOutput(true);
-            conn.setRequestProperty("User-Agent", USER_AGENT);
-            conn.setRequestProperty("Accept-Language", "en");
-            conn.setRequestProperty("Accept", "application/x-protobuf");
-            conn.setRequestProperty("Content-Type", "application/x-protobuf");
-            conn.setRequestProperty("Pragma", "no-cache");
-            conn.setRequestProperty("Cache-Control", "no-cache");
-            conn.setRequestProperty("Sec-Fetch-Mode", "no-cors");
-            
-            // Add current Yandex authentication headers
-            conn.setRequestProperty("Vtrans-Signature", bodySignature);
-            conn.setRequestProperty("Sec-Vtrans-Token", fullToken);
-            conn.setRequestProperty("Sec-Vtrans-Sk", secretKey);
+            for (int attempt = 0; attempt <= MAX_NETWORK_RETRIES; attempt++) {
+                if (attempt > 0) sleep(1000L * attempt);
+                try {
+                    URL url = new URL(YANDEX_BASE_URL + "/video-translation/translate");
+                    HttpURLConnection conn = (HttpURLConnection) url.openConnection();
+                    conn.setConnectTimeout(CONNECT_TIMEOUT_MS);
+                    conn.setReadTimeout(READ_TIMEOUT_MS);
+                    conn.setRequestMethod("POST");
+                    conn.setDoOutput(true);
+                    conn.setRequestProperty("User-Agent", USER_AGENT);
+                    conn.setRequestProperty("Accept-Language", "en");
+                    conn.setRequestProperty("Accept", "application/x-protobuf");
+                    conn.setRequestProperty("Content-Type", "application/x-protobuf");
+                    conn.setRequestProperty("Pragma", "no-cache");
+                    conn.setRequestProperty("Cache-Control", "no-cache");
+                    conn.setRequestProperty("Sec-Fetch-Mode", "no-cors");
 
-            // Write body
-            try (OutputStream os = conn.getOutputStream()) {
-                os.write(requestBody);
-                os.flush();
+                    // Add current Yandex authentication headers
+                    conn.setRequestProperty("Vtrans-Signature", bodySignature);
+                    conn.setRequestProperty("Sec-Vtrans-Token", fullToken);
+                    conn.setRequestProperty("Sec-Vtrans-Sk", secretKey);
+
+                    // Write body
+                    try (OutputStream os = conn.getOutputStream()) {
+                        os.write(requestBody);
+                        os.flush();
+                    }
+
+                    int responseCode = conn.getResponseCode();
+                    if (responseCode != 200) {
+                        Logger.printException(() -> "Yandex API returned HTTP " + responseCode);
+                        continue;
+                    }
+
+                    byte[] respBytes = readAllBytes(conn.getInputStream());
+                    return VideoTranslationResponse.parseFrom(respBytes);
+                } catch (Exception e) {
+                    final int attemptNo = attempt;
+                    Logger.printException(() -> "Yandex translate request failed (attempt " + attemptNo + ")", e);
+                }
             }
-
-            int responseCode = conn.getResponseCode();
-            if (responseCode != 200) {
-                Logger.printException(() -> "Yandex API returned HTTP " + responseCode);
-                return null;
-            }
-
-            byte[] respBytes = readAllBytes(conn.getInputStream());
-            return VideoTranslationResponse.parseFrom(respBytes);
-
+            return null;
         } catch (Exception e) {
             Logger.printException(() -> "YandexTranslationService error", e);
             return null;
+        }
+    }
+
+    /**
+     * AUDIO_REQUESTED fallback for YouTube URLs, mirroring {@code @vot.js/core}
+     * YandexProvider.translateVideo(): tell the backend the player-side audio download
+     * failed and upload an empty placeholder, then let the caller re-request translate.
+     */
+    public static boolean reportAudioUnavailable(String videoUrl, String translationId) {
+        try {
+            if (videoUrl == null || translationId == null || translationId.isEmpty()) {
+                return false;
+            }
+
+            String[] session = getOrRenewSession();
+            if (session == null) return false;
+            String uuid = session[0];
+            String secretKey = session[1];
+
+            // PUT /video-translation/fail-audio-js with a JSON body. This mirrors the
+            // reference implementation, which sends this as plain JSON without the
+            // protobuf signature headers.
+            {
+                byte[] body = ("{\"video_url\":\"" + videoUrl + "\"}").getBytes(StandardCharsets.UTF_8);
+
+                URL url = new URL(YANDEX_BASE_URL + "/video-translation/fail-audio-js");
+                HttpURLConnection conn = (HttpURLConnection) url.openConnection();
+                conn.setConnectTimeout(CONNECT_TIMEOUT_MS);
+                conn.setReadTimeout(READ_TIMEOUT_MS);
+                conn.setRequestMethod("PUT");
+                conn.setDoOutput(true);
+                conn.setRequestProperty("User-Agent", USER_AGENT);
+                conn.setRequestProperty("Accept-Language", "en");
+                conn.setRequestProperty("Content-Type", "application/json");
+                conn.setRequestProperty("Accept", "application/json");
+                conn.setRequestProperty("Pragma", "no-cache");
+                conn.setRequestProperty("Cache-Control", "no-cache");
+                conn.setRequestProperty("Sec-Vtrans-Sk", secretKey);
+
+                try (OutputStream os = conn.getOutputStream()) {
+                    os.write(body);
+                    os.flush();
+                }
+
+                int code = conn.getResponseCode();
+                if (code != 200) {
+                    Logger.printException(() -> "Yandex fail-audio-js returned HTTP " + code);
+                    return false;
+                }
+            }
+
+            // PUT /video-translation/audio with an empty audio buffer object.
+            {
+                VideoTranslationAudioRequest audioReq = VideoTranslationAudioRequest.newBuilder()
+                        .setTranslationId(translationId)
+                        .setOriginalUrl(videoUrl)
+                        .setAudioInfo(AudioBufferObject.newBuilder()
+                                .setFileId("web_api_get_all_generating_urls_data_from_iframe")
+                                .setAudioFile(ByteString.EMPTY)
+                                .build())
+                        .build();
+                byte[] body = audioReq.toByteArray();
+                String signature = generateSignature(body);
+                String tokenPath = uuid + ":/video-translation/audio:" + COMPONENT_VERSION;
+                String tokenSignature = generateSignature(tokenPath.getBytes(StandardCharsets.UTF_8));
+
+                URL url = new URL(YANDEX_BASE_URL + "/video-translation/audio");
+                HttpURLConnection conn = (HttpURLConnection) url.openConnection();
+                conn.setConnectTimeout(CONNECT_TIMEOUT_MS);
+                conn.setReadTimeout(READ_TIMEOUT_MS);
+                conn.setRequestMethod("PUT");
+                conn.setDoOutput(true);
+                conn.setRequestProperty("User-Agent", USER_AGENT);
+                conn.setRequestProperty("Content-Type", "application/x-protobuf");
+                conn.setRequestProperty("Accept", "application/x-protobuf");
+                conn.setRequestProperty("Vtrans-Signature", signature);
+                conn.setRequestProperty("Sec-Vtrans-Token", tokenSignature + ":" + tokenPath);
+                conn.setRequestProperty("Sec-Vtrans-Sk", secretKey);
+
+                try (OutputStream os = conn.getOutputStream()) {
+                    os.write(body);
+                    os.flush();
+                }
+
+                int code = conn.getResponseCode();
+                if (code != 200) {
+                    Logger.printException(() -> "Yandex audio upload returned HTTP " + code);
+                    return false;
+                }
+            }
+            return true;
+        } catch (Exception e) {
+            Logger.printException(() -> "Yandex reportAudioUnavailable error", e);
+            return false;
         }
     }
 

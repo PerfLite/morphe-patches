@@ -48,6 +48,20 @@ message VideoTranslationResponse {
   double translation_duration = 2;
   int32 remaining_time = 5;
   VideoTranslationResponseStatus response_status = 4;
+  string translation_id = 7;
   string response_message = 9;
   bool is_lively_voice = 10;
+  bool allow_to_translate_video = 11;
+  int32 should_retry = 12;
+}
+
+message AudioBufferObject {
+  string file_id = 1;
+  bytes audio_file = 2;
+}
+
+message VideoTranslationAudioRequest {
+  string translation_id = 1;
+  string original_url = 2;
+  AudioBufferObject audio_info = 6;
 }

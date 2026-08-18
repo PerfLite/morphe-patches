@@ -1,7 +1,7 @@
 {
-  "created_at": "2026-08-17T18:41:00",
-  "description": "## 1.40.3\n\n### 🐛 Bug Fixes\n\n* **YouTube - Voice-Over Translation:** Fixed button pulsing animation staying active after translation loading completed.\n* **YouTube - Voice-Over Translation:** Fixed TTS/Yandex voice starting to speak immediately when toggling translation while video is paused.",
-  "download_url": "https://github.com/PerfLite/morphe-patches/releases/download/v1.40.3/patches-1.40.3.mpp",
+  "created_at": "2026-08-18T17:05:00",
+  "description": "## 1.40.4\n\n### ✨ Improvements\n\n* **YouTube - Voice-Over Translation:** Yandex audio stream now reconnects automatically (bounded retries) when it dies mid-video or fails to prepare.\n* **YouTube - Voice-Over Translation:** Yandex translation is silently re-requested during playback when the audio failed to attach, instead of playing untranslated.\n* **YouTube - Voice-Over Translation:** Network requests now have timeouts and retries, handling the backend requesting source audio (AUDIO_REQUESTED) with the fail-audio-js fallback.",
+  "download_url": "https://github.com/PerfLite/morphe-patches/releases/download/v1.40.4/patches-1.40.4.mpp",
   "signature_download_url": "",
-  "version": "1.40.3"
+  "version": "1.40.4"
 }
