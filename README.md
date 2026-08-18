@@ -29,6 +29,7 @@ Morphe Patches
 ## ❓ About
 
 Morphe Patches are based off the prior work of [ReVanced](https://github.com/ReVanced).
+The Voice-Over Translation feature is powered by and adapted from the wonderful open-source project [voice-over-translation](https://github.com/ilyhalight/voice-over-translation) by [@ilyhalight](https://github.com/ilyhalight) and [@vot.js](https://github.com/FOSWLY/vot.js).
 All modifications made by Morphe, along with their dates, can be found in the Git history.
 
 &nbsp;
@@ -242,11 +243,18 @@ This fork includes an advanced **Voice-Over Translation** system bringing seamle
 
 <!-- PATCHES_END -->
 
-## Contributing
+## 🤝 Contributing
 
 We currently accept pull requests for fixes/improvements to YouTube, YT Music, and Reddit.
 If you have developed patches for other apps, you are encouraged to release your patches in a third party repository.
 See the [Patches template](https://github.com/morpheapp/morphe-patches-template) for more information.  
+
+## 🙏 Credits & Acknowledgments
+
+* **[ilyhalight/voice-over-translation](https://github.com/ilyhalight/voice-over-translation):** The underlying protocol, protobuf schemas, HMAC signatures, and API architecture for Yandex video translation and live voice synthesis.
+* **[FOSWLY/vot.js](https://github.com/FOSWLY/vot.js):** The JavaScript core library for interacting with Yandex translation endpoints and fail-audio-js fallback.
+* **[ReVanced](https://github.com/ReVanced):** For the initial patching foundation and tools.
+* **[Morphe](https://github.com/MorpheApp):** For the modern extension framework and patches architecture.
 
 ## 📜 License
 
