@@ -657,8 +657,27 @@ public class VoiceOverTranslationPatch {
 
         lastYandexLoadAttemptMs = System.currentTimeMillis();
 
+        // The Yandex path never loads captions, so the same-language guard that runs
+        // after the TTS fetch is missing here and a Russian video would still get
+        // "translated" into Russian. Detect the spoken language from the caption
+        // tracks first and skip when it already matches the target language.
+        final String originalLang;
+        {
+            String detected = TranscriptFetcher.detectSourceLang(videoId);
+            if (detected != null && !TranscriptFetcher.isSpokenLanguageDifferent(loadLang, detected)) {
+                Logger.printDebug(() -> "Video is already in target language (" + detected + "), skipping Yandex translation");
+                Utils.runOnMainThread(() -> {
+                    segments = new ArrayList<>();
+                    notifyStateChanged();
+                });
+                return true; // Yandex takes "ownership": don't fall through to TTS either
+            }
+            // Feed the real source language to the backend instead of always "en".
+            originalLang = detected != null ? detected : "en";
+        }
+
         VideoTranslationResponse first = YandexTranslationService.translate(
-                videoUrl, "en", loadLang, duration, preferLively);
+                videoUrl, originalLang, loadLang, duration, preferLively);
 
         // Lively voice unavailable for this video pair: the backend either refuses with
         // FAILED or answers with a message that mentions the regular voice
@@ -670,7 +689,7 @@ public class VoiceOverTranslationPatch {
             boolean refused = first.getResponseStatusValue() == 0 /* FAILED */;
             if (messageMentionsRegularVoice || refused) {
                 Logger.printDebug(() -> "Lively voice not available for this video, falling back to standard voice");
-                response = YandexTranslationService.translate(videoUrl, "en", loadLang, duration, false);
+                response = YandexTranslationService.translate(videoUrl, originalLang, loadLang, duration, false);
                 if (messageMentionsRegularVoice) {
                     Utils.showToastShort("Живой голос недоступен для этого видео, включена стандартная озвучка");
                 }
@@ -733,7 +752,7 @@ public class VoiceOverTranslationPatch {
                 }
                 retries++;
                 response = YandexTranslationService.translate(
-                        videoUrl, "en", resolveTargetLang(), duration, livelyDisabled ? false : Settings.VOT_YANDEX_LIVELY_VOICE.get());
+                        videoUrl, originalLang, resolveTargetLang(), duration, livelyDisabled ? false : Settings.VOT_YANDEX_LIVELY_VOICE.get());
             } else if (statusVal == 6 /* AUDIO_REQUESTED */) {
                 // Backend needs the source audio. The browser extension downloads it in-page;
                 // the Android client cannot, so mirror @vot.js's fail-audio-js path once and
@@ -742,7 +761,7 @@ public class VoiceOverTranslationPatch {
                     audioRequestedHandled = true;
                     Logger.printDebug(() -> "Yandex requested the audio (AUDIO_REQUESTED), sending fail-audio-js");
                     if (YandexTranslationService.reportAudioUnavailable(videoUrl, response.getTranslationId())) {
-                        response = YandexTranslationService.translate(videoUrl, "en", loadLang, duration, false);
+                        response = YandexTranslationService.translate(videoUrl, originalLang, loadLang, duration, false);
                         retries++;
                         continue;
                     }
