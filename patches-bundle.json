@@ -1,6 +1,6 @@
 {
-  "created_at": "2026-08-20T17:44:00",
-  "description": "## 1.40.1\n\n### 🐛 Bug Fixes\n\n* **YouTube - Voice-Over Translation:** Videos already in the target language (e.g. Russian video with Russian target) no longer get Yandex voice-over; the spoken language is now detected from ASR caption tracks before requesting the translation.",
+  "created_at": "2026-08-22T07:30:00",
+  "description": "## 1.40.1\n\n### 🐛 Bug Fixes & Stability\n\n* **YouTube - Voice-Over Translation:** Fixed HTTP 429 rate limit error when falling back to subtitle translation.\n* **YouTube - Voice-Over Translation:** Removed aggressive background polling loops during video playback.\n* **YouTube - Voice-Over Translation:** Restored reliable direct Yandex voice synthesis with automatic language detection and Lively Voice support.",
   "download_url": "https://github.com/PerfLite/morphe-patches/releases/download/v1.40.1/patches-1.40.1.mpp",
   "signature_download_url": "",
   "version": "1.40.1"

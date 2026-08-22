@@ -55,13 +55,13 @@ public final class TranscriptTranslator {
 
     // Batches are built by character budget rather than segment count, so request
     // sizes stay uniform regardless of how long the merged sentences are.
-    private static final int GOOGLE_MAX_BATCH_CHARS = 4_000;
+    private static final int GOOGLE_MAX_BATCH_CHARS = 2_500;
     // Smaller batches for OpenRouter so the first batch completes faster and TTS starts sooner.
     private static final int OPENROUTER_MAX_BATCH_CHARS = 1_500;
     // Character budget for the first batch dispatched after a start or seek.
     private static final int OPENROUTER_FIRST_BATCH_CHARS = 350;
     // Delay between consecutive background batches to reduce IP rate-limit pressure.
-    private static final int GOOGLE_INTER_BATCH_DELAY_MS = 500;
+    private static final int GOOGLE_INTER_BATCH_DELAY_MS = 1_000;
     private static final int OPENROUTER_INTER_BATCH_DELAY_MS = 0;
     // OpenRouter LLM inference can take longer than the shared read timeout.
     private static final int OPENROUTER_READ_TIMEOUT_MS = 30_000;
@@ -625,7 +625,8 @@ public final class TranscriptTranslator {
         conn.setConnectTimeout(CONNECT_TIMEOUT_MS);
         conn.setReadTimeout(READ_TIMEOUT_MS);
         conn.setRequestProperty("Content-Type", "application/x-www-form-urlencoded");
-        conn.setRequestProperty("User-Agent", "Mozilla/5.0");
+        conn.setRequestProperty("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36");
+        conn.setRequestProperty("Accept", "*/*");
         conn.setDoOutput(true);
 
         //noinspection CharsetObjectCanBeUsed

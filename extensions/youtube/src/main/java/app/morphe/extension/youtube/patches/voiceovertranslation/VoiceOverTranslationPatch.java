@@ -156,12 +156,6 @@ public class VoiceOverTranslationPatch {
     // Volatile so background threads can read the active segment without
     // taking a lock. Writes still happen only on the main thread.
     private static volatile int lastSpokenIndex = -1;
-    // Throttles the silent Yandex re-requests so playback ticks don't spam the API
-    // when the translated audio failed to attach.
-    private static volatile long lastYandexLoadAttemptMs;
-    // Bounds how many times the Yandex translation is silently re-requested per video.
-    // The user can always force a fresh attempt by toggling the player button.
-    private static volatile int yandexAutoRetryCount;
 
     /** @return Index of the segment whose audio is mid-playback, or -1. Safe off-main-thread. */
     static int getLastSpokenIndex() {
@@ -274,7 +268,6 @@ public class VoiceOverTranslationPatch {
         currentVideoId = videoId;
         segments = new ArrayList<>();
         httpErrorDialogShownThisVideo = false;
-        yandexAutoRetryCount = 0;
 
         if (!Settings.VOT_ENABLED.get() || !sessionEnabled) return;
         if (ShortsPlayerState.isOpen() || PlayerType.getCurrent().isNoneOrHidden() || PlayerType.getCurrent() == PlayerType.INLINE_MINIMAL) {
@@ -323,11 +316,6 @@ public class VoiceOverTranslationPatch {
             return; // paused, ended, or loading
         }
         if (YANDEX_SERVICE.equals(Settings.VOT_TRANSLATION_SERVICE.get())) {
-            if (!YandexAudioEngine.INSTANCE.hasAudioSession()) {
-                // First request failed or the stream died mid-video - re-request instead
-                // of playing the video without translation forever.
-                maybeRetryYandexLoad();
-            }
             YandexAudioEngine.INSTANCE.play(timeMs);
             return;
         }
@@ -655,29 +643,22 @@ public class VoiceOverTranslationPatch {
         VideoTranslationResponse response = null;
         boolean audioRequestedHandled = false;
 
-        lastYandexLoadAttemptMs = System.currentTimeMillis();
-
-        // The Yandex path never loads captions, so the same-language guard that runs
-        // after the TTS fetch is missing here and a Russian video would still get
-        // "translated" into Russian. Detect the spoken language from the caption
-        // tracks first and skip when it already matches the target language.
-        final String originalLang;
-        {
-            String detected = TranscriptFetcher.detectSourceLang(videoId);
-            if (detected != null && !TranscriptFetcher.isSpokenLanguageDifferent(loadLang, detected)) {
-                Logger.printDebug(() -> "Video is already in target language (" + detected + "), skipping Yandex translation");
-                Utils.runOnMainThread(() -> {
-                    segments = new ArrayList<>();
-                    notifyStateChanged();
-                });
-                return true; // Yandex takes "ownership": don't fall through to TTS either
-            }
-            // Feed the real source language to the backend instead of always "en".
-            originalLang = detected != null ? detected : "en";
-        }
+        final String originalLang = "auto";
 
         VideoTranslationResponse first = YandexTranslationService.translate(
                 videoUrl, originalLang, loadLang, duration, preferLively);
+
+        // Check if Yandex indicates the video is already in the target language
+        if (first != null && !first.getAllowToTranslateVideo() && first.getResponseMessage() != null
+                && (first.getResponseMessage().toLowerCase().contains("совпадает")
+                    || first.getResponseMessage().toLowerCase().contains("на том же языке"))) {
+            Logger.printDebug(() -> "Video is already in target language according to Yandex, skipping translation");
+            Utils.runOnMainThread(() -> {
+                segments = new ArrayList<>();
+                notifyStateChanged();
+            });
+            return true;
+        }
 
         // Lively voice unavailable for this video pair: the backend either refuses with
         // FAILED or answers with a message that mentions the regular voice
@@ -792,29 +773,6 @@ public class VoiceOverTranslationPatch {
     private static boolean yandexStillRelevant(String videoId) {
         return videoId.equals(currentVideoId) && sessionEnabled && Settings.VOT_ENABLED.get()
                 && !PlayerType.getCurrent().isNoneOrHidden() && !ShortsPlayerState.isOpen();
-    }
-
-    /**
-     * Re-requests the Yandex voice-over when the engine has no attached audio stream
-     * (first request failed or the stream died mid-video) while the session is active.
-     * Called from playback ticks; throttled to avoid spamming the API. The user can
-     * always force an immediate retry by toggling the player button off and on.
-     */
-    static void maybeRetryYandexLoad() {
-        if (!Settings.VOT_ENABLED.get() || !sessionEnabled) return;
-        if (isLoading) return;
-        if (yandexAutoRetryCount >= 3) return;
-        if (ShortsPlayerState.isOpen()) return;
-        PlayerType currentType = PlayerType.getCurrent();
-        if (currentType.isNoneOrHidden()) return;
-        long now = System.currentTimeMillis();
-        if (now - lastYandexLoadAttemptMs < 30_000) return;
-        lastYandexLoadAttemptMs = now;
-        final String videoId = currentVideoId;
-        if (videoId.isEmpty()) return;
-        yandexAutoRetryCount++;
-        Logger.printDebug(() -> "Yandex audio missing during playback, retrying load (" + yandexAutoRetryCount + "/3)");
-        loadTranscript(videoId);
     }
 
     /** Lazily creates the System TTS instance and wires its completion listener. Idempotent. */

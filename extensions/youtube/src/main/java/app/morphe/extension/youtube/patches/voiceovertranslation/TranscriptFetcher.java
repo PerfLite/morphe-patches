@@ -141,49 +141,6 @@ final class TranscriptFetcher {
         return Requester.parseString(conn);
     }
 
-    /**
-     * Detects the language the video is actually spoken in, using its caption tracks.
-     * The ASR track is preferred over manual tracks because a creator-uploaded track
-     * can be in a different language than the audio. Returns null when the tracks
-     * are not available so the caller can fall back to its previous assumption.
-     */
-    @Nullable
-    static String detectSourceLang(String videoId) {
-        try {
-            String json = fetchPlayerJson(videoId);
-            final int tracksIdx = json.indexOf("\"captionTracks\":[");
-            if (tracksIdx < 0) return null;
-
-            String asrLang = null;
-            String fallbackLang = null;
-            int searchFrom = tracksIdx;
-
-            while (true) {
-                int baseUrlIdx = json.indexOf("\"baseUrl\":\"", searchFrom);
-                if (baseUrlIdx < 0 || baseUrlIdx > tracksIdx + 50_000) break;
-                baseUrlIdx += "\"baseUrl\":\"".length();
-
-                final int endIdx = json.indexOf('"', baseUrlIdx);
-                if (endIdx < 0) break;
-
-                String url = unescapeInnertube(json.substring(baseUrlIdx, endIdx));
-                if (!url.contains("variant=gemini")) {
-                    String lang = extractLangFromUrl(url).split("-")[0];
-                    if (url.contains("kind=asr")) {
-                        if (asrLang == null) asrLang = lang;
-                    } else if (fallbackLang == null) {
-                        fallbackLang = lang;
-                    }
-                }
-                searchFrom = endIdx + 1;
-            }
-            return asrLang != null ? asrLang : fallbackLang;
-        } catch (Exception ex) {
-            Logger.printDebug(() -> "detectSourceLang failed", ex);
-            return null;
-        }
-    }
-
     private static String unescapeInnertube(String text) {
         return text.replace("\\u0026", "&")
                 .replace("\\u003d", "=")
