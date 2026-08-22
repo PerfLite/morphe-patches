@@ -265,6 +265,7 @@ public class VoiceOverTranslationPatch {
         Logger.printDebug(() -> "preloadTranslations newVideoLoaded");
         TranscriptTranslator.requestAbort();
         stopTts();
+        YandexAudioEngine.INSTANCE.stop();
         currentVideoId = videoId;
         segments = new ArrayList<>();
         httpErrorDialogShownThisVideo = false;
@@ -405,7 +406,8 @@ public class VoiceOverTranslationPatch {
     /** @return true when VoT is enabled, the session is on, and a transcript is loaded. */
     public static boolean isTranslationActive() {
         Utils.verifyOnMainThread();
-        return Settings.VOT_ENABLED.get() && sessionEnabled && !segments.isEmpty();
+        return Settings.VOT_ENABLED.get() && sessionEnabled
+                && (!segments.isEmpty() || YandexAudioEngine.INSTANCE.hasAudioSession());
     }
 
     /** @return Per-session enabled flag (toggleable via the player button) - not the global setting. */
@@ -424,15 +426,17 @@ public class VoiceOverTranslationPatch {
         Settings.VOT_SESSION_ENABLED.save(sessionEnabled);
         if (!sessionEnabled) {
             stopTts();
+            YandexAudioEngine.INSTANCE.stop();
             lastSpokenIndex = -1;
         } else {
             if (VideoState.getCurrent() != VideoState.PLAYING) {
                 stopTts();
+                YandexAudioEngine.INSTANCE.pause();
                 lastSpokenIndex = -1;
             } else {
                 videoTimeChanged(VideoInformation.getVideoTime());
             }
-            if (!currentVideoId.isEmpty() && segments.isEmpty() && !isLoading) {
+            if (!currentVideoId.isEmpty() && segments.isEmpty() && !YandexAudioEngine.INSTANCE.hasAudioSession() && !isLoading) {
                 loadTranscript(currentVideoId);
             }
         }
@@ -443,6 +447,7 @@ public class VoiceOverTranslationPatch {
     public static void interruptSpeech() {
         Utils.verifyOnMainThread();
         stopTts();
+        YandexAudioEngine.INSTANCE.pause();
     }
 
     /**
@@ -470,7 +475,7 @@ public class VoiceOverTranslationPatch {
     /** Re-applies the ducking multiplier so a Settings change takes effect immediately. */
     public static void updateOriginalAudioMultiplier() {
         Utils.verifyOnMainThread();
-        if (ttsEngine.isSpeaking() || isTestSpeaking) {
+        if (ttsEngine.isSpeaking() || isTestSpeaking || YandexAudioEngine.INSTANCE.isPlaying()) {
             VotOriginalVolumePatch.setAudioMultiplier(Settings.VOT_ORIGINAL_AUDIO_VOLUME.get() / 100.0f);
         }
     }
@@ -480,6 +485,7 @@ public class VoiceOverTranslationPatch {
         Utils.verifyOnMainThread();
         if (currentVideoId.isEmpty()) return;
         stopTts();
+        YandexAudioEngine.INSTANCE.stop();
         segments = new ArrayList<>();
         lastSpokenIndex = -1;
         // Without this, in-flight onUpdate callbacks for the old language would restore

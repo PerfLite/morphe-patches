@@ -187,6 +187,9 @@ public class YandexTranslationService {
                     int responseCode = conn.getResponseCode();
                     if (responseCode != 200) {
                         Logger.printException(() -> "Yandex API returned HTTP " + responseCode);
+                        if (responseCode == 400 || responseCode == 401 || responseCode == 403) {
+                            resetSession();
+                        }
                         continue;
                     }
 
@@ -288,6 +291,9 @@ public class YandexTranslationService {
                 int code = conn.getResponseCode();
                 if (code != 200) {
                     Logger.printException(() -> "Yandex audio upload returned HTTP " + code);
+                    if (code == 400 || code == 401 || code == 403) {
+                        resetSession();
+                    }
                     return false;
                 }
             }
