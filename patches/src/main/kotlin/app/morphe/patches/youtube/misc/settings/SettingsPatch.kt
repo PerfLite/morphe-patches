@@ -17,8 +17,8 @@ import app.morphe.patcher.patch.BytecodePatchContext
 import app.morphe.patcher.patch.bytecodePatch
 import app.morphe.patcher.patch.resourcePatch
 import app.morphe.patcher.util.proxy.mutableTypes.MutableMethod.Companion.toMutable
+import app.morphe.patches.all.misc.clone.setOrGetFallbackPackageName
 import app.morphe.patches.all.misc.fix.openurllinks.removeLinkVerification
-import app.morphe.patches.all.misc.packagename.setOrGetFallbackPackageName
 import app.morphe.patches.all.misc.resources.addAppResources
 import app.morphe.patches.all.misc.resources.addResourcesPatch
 import app.morphe.patches.all.misc.resources.localesYouTube
@@ -30,6 +30,9 @@ import app.morphe.patches.shared.layout.branding.addLicensePatch
 import app.morphe.patches.shared.misc.checks.experimentalAppNoticePatch
 import app.morphe.patches.shared.misc.initialization.initializationPatch
 import app.morphe.patches.shared.misc.settings.MORPHE_SETTINGS_INTENT
+import app.morphe.patches.shared.misc.settings.SETTINGS_NAME_PREFERENCE_KEY
+import app.morphe.patches.shared.misc.settings.customSettingsNameInstructions
+import app.morphe.patches.shared.misc.settings.customSettingsNamePreference
 import app.morphe.patches.shared.misc.settings.overrideThemeColors
 import app.morphe.patches.shared.misc.settings.preference.BasePreference
 import app.morphe.patches.shared.misc.settings.preference.BasePreferenceScreen
@@ -51,6 +54,7 @@ import app.morphe.patches.youtube.misc.fix.pipchatbar.fixPipChatBarPatch
 import app.morphe.patches.youtube.misc.fix.playbackspeed.fixPlaybackSpeedWhilePlayingPatch
 import app.morphe.patches.youtube.misc.fix.preference.fixPreferenceIconPatch
 import app.morphe.patches.youtube.misc.playservice.is_20_31_or_greater
+import app.morphe.patches.youtube.misc.playservice.is_21_30_or_greater
 import app.morphe.patches.youtube.misc.playservice.versionCheckPatch
 import app.morphe.patches.youtube.shared.Constants.COMPATIBILITY_YOUTUBE
 import app.morphe.patches.youtube.shared.YouTubeActivityOnCreateFingerprint
@@ -59,11 +63,14 @@ import app.morphe.util.addInstructionsAtControlFlowLabel
 import app.morphe.util.copyResources
 import app.morphe.util.findElementByAttributeValueOrThrow
 import app.morphe.util.findInstructionIndicesReversedOrThrow
+import app.morphe.util.getFreeRegisterProvider
 import app.morphe.util.insertLiteralOverride
 import com.android.tools.smali.dexlib2.AccessFlags
 import com.android.tools.smali.dexlib2.Opcode
 import com.android.tools.smali.dexlib2.builder.MutableMethodImplementation
+import com.android.tools.smali.dexlib2.iface.instruction.FiveRegisterInstruction
 import com.android.tools.smali.dexlib2.iface.instruction.OneRegisterInstruction
+import com.android.tools.smali.dexlib2.iface.instruction.ReferenceInstruction
 import com.android.tools.smali.dexlib2.immutable.ImmutableMethod
 import com.android.tools.smali.dexlib2.immutable.ImmutableMethodParameter
 import com.android.tools.smali.dexlib2.util.MethodUtil
@@ -78,7 +85,10 @@ private val settingsResourcePatch = resourcePatch {
         resourceMappingPatch,
         settingsPatch(
             rootPreferences = listOf(
+                // The Cairo layout shows the Morphe name as the category of the entry,
+                // so in both layouts the entry itself is what the name key belongs to.
                 IntentPreference(
+                    key = SETTINGS_NAME_PREFERENCE_KEY,
                     titleKey = "morphe_settings_title",
                     summaryKey = null,
                     intent = newIntent(MORPHE_SETTINGS_INTENT)
@@ -89,6 +99,7 @@ private val settingsResourcePatch = resourcePatch {
                     layout = "@layout/preference_group_title",
                     preferences = setOf(
                         IntentPreference(
+                            key = SETTINGS_NAME_PREFERENCE_KEY,
                             titleKey = "morphe_settings_submenu_title",
                             summaryKey = null,
                             icon = "@drawable/morphe_settings_icon_dynamic",
@@ -208,16 +219,16 @@ val settingsPatch = bytecodePatch(
         settingsResourcePatch,
         addResourcesPatch,
         versionCheckPatch,
+        // Currently there is no easy way to make patches mandatory,
+        // so for now these are all dependents of this patch.
         fixPlaybackSpeedWhilePlayingPatch,
         fixPreferenceIconPatch,
         fixLikeButtonPatch,
         fixContentProviderPatch,
         fixPipChatBarPatch,
-        removeLinkVerification,
-        // Currently there is no easy way to make a mandatory patch,
-        // so for now this is a dependent of this patch.
-        checkEnvironmentPatch,
         addLicensePatch,
+        removeLinkVerification,
+        checkEnvironmentPatch,
         experimentalAppNoticePatch(
             mainActivityFingerprint = YouTubeActivityOnCreateFingerprint,
             recommendedAppVersion = COMPATIBILITY_YOUTUBE.targets.first { !it.isExperimental }.version!!
@@ -243,16 +254,16 @@ val settingsPatch = bytecodePatch(
             selectable = true
         )
 
-        PreferenceScreen.GENERAL.addPreferences(
-            SwitchPreference("morphe_restore_old_settings_menus")
-        )
+        if (!is_21_30_or_greater) {
+            PreferenceScreen.GENERAL.addPreferences(
+                SwitchPreference("morphe_restore_old_settings_menus")
+            )
+        }
 
         PreferenceScreen.GENERAL.addPreferences(
-            SwitchPreference("morphe_settings_search_history")
-        )
-
-        PreferenceScreen.GENERAL.addPreferences(
-            SwitchPreference("morphe_show_menu_icons")
+            SwitchPreference("morphe_settings_search_history"),
+            SwitchPreference("morphe_show_menu_icons"),
+            customSettingsNamePreference()
         )
 
         PreferenceScreen.MISC.addPreferences(
@@ -283,18 +294,53 @@ val settingsPatch = bytecodePatch(
         }
 
         // Add setting to force Cairo settings fragment on/off.
-        CairoFragmentConfigFingerprint.method.insertLiteralOverride(
-            CairoFragmentConfigFingerprint.instructionMatches.first().index,
-            "$YOUTUBE_ACTIVITY_HOOK_CLASS->useCairoSettingsFragment(Z)Z"
-        )
+        if (!is_21_30_or_greater) CairoFragmentConfigFingerprint.matchAll().forEach { match ->
+            // 21.30+ inlines the flag lookup and must patch ~15 places.
+            match.method.insertLiteralOverride(
+                match.instructionMatches.first().index,
+                "$YOUTUBE_ACTIVITY_HOOK_CLASS->useCairoSettingsFragment(Z)Z"
+            )
+        }
 
         // Bold icon resources are found starting in 20.23, but many YT icons are not bold.
         // 20.31 is the first version that seems to have all the bold icons.
         if (is_20_31_or_greater) {
-            BoldIconsFeatureFlagFingerprint.let {
+            BoldIconsFeatureFlagFingerprint.matchAll().forEach {
                 it.method.insertLiteralOverride(
                     it.instructionMatches.first().index,
                     "$YOUTUBE_ACTIVITY_HOOK_CLASS->useBoldIcons(Z)Z"
+                )
+            }
+        }
+
+        SettingsPreferenceScreenSyntheticFingerprint.let {
+            it.method.apply {
+                // Reuse the method's own getPreferenceScreen call.
+                val getPreferenceScreenIndex = it.instructionMatches[1].index
+                val fragmentRegister =
+                    getInstruction<FiveRegisterInstruction>(getPreferenceScreenIndex).registerC
+                val getPreferenceScreenReference =
+                    getInstruction<ReferenceInstruction>(getPreferenceScreenIndex).reference
+
+                // fragmentRegister must survive, because the settings menu filter patch
+                // adds its own call on it after these instructions.
+                val insertIndex = it.instructionMatches.last().index
+                val registerProvider = getFreeRegisterProvider(insertIndex, 3, fragmentRegister)
+                val screenRegister = registerProvider.getFreeRegister()
+                val preferenceRegister = registerProvider.getFreeRegister()
+                val nameRegister = registerProvider.getFreeRegister()
+
+                addInstructionsAtControlFlowLabel(
+                    insertIndex,
+                    customSettingsNameInstructions(
+                        getPreferenceScreen = """
+                            invoke-virtual { v$fragmentRegister }, $getPreferenceScreenReference
+                            move-result-object v$screenRegister
+                        """,
+                        screenRegister = screenRegister,
+                        preferenceRegister = preferenceRegister,
+                        nameRegister = nameRegister
+                    )
                 )
             }
         }

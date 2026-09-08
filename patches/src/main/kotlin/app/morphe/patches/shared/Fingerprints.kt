@@ -8,9 +8,14 @@
 package app.morphe.patches.shared
 
 import app.morphe.patcher.Fingerprint
+import app.morphe.patcher.InstructionLocation.MatchAfterWithin
 import app.morphe.patcher.StringComparisonType
+import app.morphe.patcher.anyInstruction
+import app.morphe.patcher.checkCast
+import app.morphe.patcher.fieldAccess
 import app.morphe.patcher.literal
 import app.morphe.patcher.methodCall
+import app.morphe.patcher.opcode
 import app.morphe.patcher.string
 import com.android.tools.smali.dexlib2.AccessFlags
 import com.android.tools.smali.dexlib2.Opcode
@@ -42,11 +47,27 @@ internal object GoogleApiActivityOnCreateFingerprint : Fingerprint(
 // Flag is present in YT 20.23, but bold icons are missing and forcing them crashes the app.
 // 20.31 is the first target with all the bold icons present.
 internal object BoldIconsFeatureFlagFingerprint : Fingerprint(
-    accessFlags = listOf(AccessFlags.PUBLIC, AccessFlags.FINAL),
-    returnType = "Z",
-    parameters = listOf(),
     filters = listOf(
         literal(45685201L)
+    )
+)
+
+internal object BuildInnerTubeProtoRequestUriFingerprint : Fingerprint(
+    parameters = listOf(),
+    filters = listOf(
+        string("key"),
+        string("asig"),
+        checkCast("Ljava/lang/String;"),
+        methodCall($$"Landroid/net/Uri$Builder;->appendQueryParameter(Ljava/lang/String;Ljava/lang/String;)Landroid/net/Uri$Builder;"),
+        anyInstruction(
+            // YT 21.20, YTM 9.18
+            methodCall($$"Landroid/net/Uri$Builder;->build()Landroid/net/Uri;"),
+            // YT 21.21+, YTM 9.19+
+            opcode(
+                opcode = Opcode.RETURN_OBJECT,
+                location = MatchAfterWithin(5)
+            )
+        )
     )
 )
 
@@ -56,6 +77,37 @@ internal object CurrentAudioVideoFormatToStringFingerprint : Fingerprint(
     returnType = "Ljava/lang/String;",
     parameters = listOf(),
     strings = listOf("currentVideoFormat=")
+)
+
+internal object FormatStreamModelToStringFingerprint : Fingerprint(
+    name = "toString",
+    accessFlags = listOf(AccessFlags.PUBLIC, AccessFlags.FINAL),
+    returnType = "Ljava/lang/String;",
+    filters = listOf(
+        string(" isDefaultAudioTrack="),
+        string(" audioTrackId="),
+        string(" audioTrackDisplayName="),
+        string(" width="),
+        string(" height="),
+        // formatStreamModelFormatField.
+        fieldAccess(
+            opcode = Opcode.IGET_OBJECT,
+            definingClass = "this",
+            type = "L"
+        ),
+        string("FormatStream(itag="),
+        string(" mimeType=")
+    )
+)
+
+internal object MediaSessionSetPlaybackStateFingerprint : Fingerprint(
+    filters = listOf(
+        methodCall(
+            definingClass = "Landroid/media/session/MediaSession;",
+            name = "setPlaybackState",
+            parameters = listOf("Landroid/media/session/PlaybackState;")
+        )
+    )
 )
 
 internal object SpannableStringBuilderFingerprint : Fingerprint(

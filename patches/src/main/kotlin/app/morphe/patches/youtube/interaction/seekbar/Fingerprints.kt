@@ -22,6 +22,7 @@ import app.morphe.patcher.opcode
 import app.morphe.patcher.string
 import app.morphe.patches.all.misc.resources.ResourceType
 import app.morphe.patches.all.misc.resources.resourceLiteral
+import app.morphe.patches.shared.FormatStreamModelToStringFingerprint
 import app.morphe.patches.youtube.shared.SeekbarFingerprint
 import app.morphe.patches.youtube.shared.VideoStreamingDataToStringFingerprint
 import com.android.tools.smali.dexlib2.AccessFlags
@@ -133,11 +134,14 @@ internal object SlideToSeekFingerprint : Fingerprint(
 )
 
 internal object FullscreenLargeSeekbarFeatureFlagFingerprint : Fingerprint(
-    accessFlags = listOf(AccessFlags.PUBLIC, AccessFlags.FINAL),
-    returnType = "Z",
-    parameters = listOf(),
     filters = listOf(
         literal(45691569)
+    )
+)
+
+internal object ShortsDisableSeekbarThumbnailsFeatureFlagFingerprint : Fingerprint(
+    filters = listOf(
+        literal(45787901)
     )
 )
 
@@ -153,17 +157,10 @@ internal object VideoStreamingDataAllowSeekingFingerprint : Fingerprint(
     )
 )
 
-private object FormatStreamModelClassFingerprint : Fingerprint(
-    returnType = "Ljava/lang/String;",
-    filters = listOf(
-        string("FormatStream(itag=")
-    )
-)
-
 // DVR window duration in seconds; 0 for non-DVR streams.
 // Caller multiplies result by 1e6 with 4-hour fallback when <= 0, logs "windowMaxMediaTimeUs".
 internal object FormatStreamModelMaxDVRDurationFingerprint : Fingerprint(
-    classFingerprint = FormatStreamModelClassFingerprint,
+    classFingerprint = FormatStreamModelToStringFingerprint,
     accessFlags = listOf(AccessFlags.PUBLIC, AccessFlags.FINAL),
     returnType = "D",
     parameters = listOf(),
@@ -298,5 +295,26 @@ internal object SeekbarBigBoardsUpdateLegacyFingerprint : Fingerprint (
         literal(1),
         opcode(opcode = Opcode.IF_NEZ, location = MatchAfterImmediately()),
         opcode(opcode = Opcode.RETURN, location = MatchAfterImmediately())
+    )
+)
+
+internal object PreciseSeekingRecyclerViewFingerprint : Fingerprint (
+    classFingerprint = Fingerprint(
+        accessFlags = listOf(
+            AccessFlags.PUBLIC,
+            AccessFlags.FINAL,
+            AccessFlags.BRIDGE,
+            AccessFlags.SYNTHETIC
+        ),
+        filters = listOf(
+            resourceLiteral(ResourceType.LAYOUT, "film_strip_thumbnail_item")
+        )
+    ),
+    accessFlags = listOf(AccessFlags.PUBLIC, AccessFlags.FINAL),
+    returnType = "V",
+    parameters = listOf("Landroid/support/v7/widget/RecyclerView;"),
+    filters = listOf(
+        fieldAccess(opcode = Opcode.IPUT_OBJECT, type = "Landroid/support/v7/widget/RecyclerView;"),
+        opcode(opcode = Opcode.RETURN_VOID, location = MatchAfterImmediately())
     )
 )

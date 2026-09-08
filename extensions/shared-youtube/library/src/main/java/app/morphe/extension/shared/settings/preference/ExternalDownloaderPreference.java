@@ -14,8 +14,6 @@ import android.app.Dialog;
 import android.content.Context;
 import android.content.Intent;
 import android.content.pm.PackageManager;
-import android.graphics.drawable.ShapeDrawable;
-import android.graphics.drawable.shapes.RoundRectShape;
 import android.net.Uri;
 import android.os.Bundle;
 import android.text.Editable;
@@ -385,12 +383,11 @@ public class ExternalDownloaderPreference extends CustomDialogListPreference {
     private EditText createEditText(Context context,
                                     String initialPackageName, boolean isCustom,
                                     Function<String, Void> textChangeCallback) {
-        EditText editText = new EditText(context);
+        EditText editText = CustomDialog.createEditText(context);
         editText.setText(initialPackageName);
         editText.setSelection(initialPackageName.length());
         editText.setHint(str("morphe_external_downloader_other_item_hint"));
         editText.setSingleLine(true);
-        editText.setTextSize(16);
         editText.setEnabled(isCustom);
 
         editText.addTextChangedListener(new TextWatcher() {
@@ -406,13 +403,6 @@ public class ExternalDownloaderPreference extends CustomDialogListPreference {
                 textChangeCallback.apply(updatedPackageName);
             }
         });
-
-        ShapeDrawable editTextBackground = new ShapeDrawable(new RoundRectShape(
-                Dim.roundedCorners(10), null, null));
-        editTextBackground.getPaint().setColor(Utils.getEditTextBackground());
-        editText.setPadding(Dim.dp8, Dim.dp8, Dim.dp8, Dim.dp8);
-        editText.setBackground(editTextBackground);
-        editText.setClipToOutline(true);
 
         return editText;
     }

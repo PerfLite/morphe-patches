@@ -1,12 +1,12 @@
 package app.morphe.patches.music.misc.audio
 
 import app.morphe.patches.music.misc.extension.sharedExtensionPatch
-import app.morphe.patches.music.misc.playservice.is_8_05_or_greater
 import app.morphe.patches.music.misc.playservice.is_9_26_or_greater
 import app.morphe.patches.music.misc.playservice.versionCheckPatch
 import app.morphe.patches.music.misc.settings.PreferenceScreen
 import app.morphe.patches.music.misc.settings.settingsPatch
 import app.morphe.patches.music.shared.Constants.COMPATIBILITY_YOUTUBE_MUSIC
+import app.morphe.patches.music.shared.MusicActivityOnCreateFingerprint
 import app.morphe.patches.shared.misc.audio.tracks.forceOriginalAudioPatch
 
 @Suppress("unused")
@@ -20,7 +20,9 @@ val forceOriginalAudioPatch = forceOriginalAudioPatch(
 
         compatibleWith(COMPATIBILITY_YOUTUBE_MUSIC)
     },
-    fixUseLocalizedAudioTrackFlag = { is_8_05_or_greater && !is_9_26_or_greater },
+    fixUseLocalizedAudioTrackFlag = { !is_9_26_or_greater },
     forcedServerAdaptiveStreaming = { is_9_26_or_greater },
+    mainActivityOnCreateFingerprint = MusicActivityOnCreateFingerprint,
+    subclassExtensionClassDescriptor = "Lapp/morphe/extension/music/patches/ForceOriginalAudioPatch;",
     preferenceScreen = PreferenceScreen.MISC,
 )

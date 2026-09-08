@@ -1,7 +1,7 @@
 {
-  "created_at": "2026-08-22T09:15:00",
-  "description": "## 1.40.2\n\n### 🐛 Bug Fixes & Stability\n\n* **YouTube - Voice-Over Translation:** Fixed audio engine state not resetting when switching between videos.\n* **YouTube - Voice-Over Translation:** Fixed translation toggle state recognition for Yandex audio streams.\n* **YouTube - Voice-Over Translation:** Added automatic session invalidation and renewal on Yandex auth/session expiration.",
-  "download_url": "https://github.com/PerfLite/morphe-patches/releases/download/v1.40.2/patches-1.40.2.mpp",
+  "created_at": "2026-09-08T14:00:00",
+  "description": "## [1.41.0](https://github.com/PerfLite/morphe-patches/releases/tag/v1.41.0) (2026-09-08)\n\n### ⚡ Upstream 1.41.0 Sync & Features\n\n* **Upstream 1.41.0 updates merged:** Support for YouTube 21.35.442 / 21.07.247, YouTube Music 9.34.52, Reddit 2026.35.0.\n* **New upstream patches:** App refresh rate, PoToken provider, Fullscreen video scale, Mute button, Player volume ducking/muting hooks, Feature flags manager binary search.\n* **Voice-Over Translation (VOT):** Full Yandex neural voice dubbing with Lively Voice (Живой голос), automatic language detection, volume ducking, and rate-limiting protections.",
+  "download_url": "https://github.com/PerfLite/morphe-patches/releases/download/v1.41.0/patches-1.41.0.mpp",
   "signature_download_url": "",
-  "version": "1.40.2"
+  "version": "1.41.0"
 }

@@ -18,27 +18,26 @@ internal object Constants {
         ),
         targets = listOf(
             AppTarget(
-                version = "21.29.366",
+                version = "21.35.442",
                 minSdk = 29,
                 isExperimental = true
             ),
             AppTarget(
-                version = "21.28.204", // Last version with different miniplayers.
+                version = "21.34.243",
                 minSdk = 29,
                 isExperimental = true
             ),
             AppTarget(
-                version = "21.26.360",
+                version = "21.28.208", // Last version with different miniplayers.
                 minSdk = 29,
                 isExperimental = true
             ),
             AppTarget(
-                version = "21.05.265",
-                minSdk = 28,
-                isExperimental = true
+                version = "21.07.247",
+                minSdk = 28
             ),
             AppTarget(
-                version = "21.04.223",
+                version = "21.04.223", // TODO: Remove this version
                 minSdk = 28
             ),
             AppTarget(

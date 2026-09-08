@@ -28,12 +28,13 @@ internal const val EXTENSION_CLASS = "Lapp/morphe/extension/shared/patches/Netwo
 internal fun baseNetworkProxyPatch(
     preferenceScreen: BasePreferenceScreen.Screen,
     targetUsesProxyListInt: BytecodePatchBuilder.() -> Boolean,
-    patchNotCompatibleMessage: BytecodePatchBuilder.() -> String?,
+    patchNotCompatibleMessage: BytecodePatchBuilder.() -> String? = { null },
     block: BytecodePatchBuilder.() -> Unit,
     executeBlock: BytecodePatchContext.() -> Unit = {}
 ) = bytecodePatch(
     name = "Network proxy",
-    description = "Adds settings to route supported network requests through an HTTP or HTTPS proxy."
+    description = "Adds settings to route supported network requests through an HTTP or HTTPS proxy.",
+    default = false
 ) {
 
     block()
@@ -78,14 +79,14 @@ internal fun baseNetworkProxyPatch(
         BuildExperimentalFingerprint.method.apply {
             addInstruction(
                 0,
-                "invoke-static { p0 }, $EXTENSION_CLASS->applyProxyOptions(Lorg/chromium/net/CronetEngine\$Builder;)V"
+                $$"invoke-static { p0 }, $$EXTENSION_CLASS->applyProxyOptions(Lorg/chromium/net/CronetEngine$Builder;)V"
             )
 
             findInstructionIndicesReversedOrThrow(Opcode.RETURN_OBJECT).forEach { index ->
                 val register = getInstruction<OneRegisterInstruction>(index).registerA
                 addInstruction(
                     index,
-                    "invoke-static { v$register }, $EXTENSION_CLASS->recordProxyConfiguredCronetEngine($CRONET_ENGINE_CLASS)V"
+                    "invoke-static { v$register }, $EXTENSION_CLASS->recordCronetEngine($CRONET_ENGINE_CLASS)V"
                 )
             }
         }

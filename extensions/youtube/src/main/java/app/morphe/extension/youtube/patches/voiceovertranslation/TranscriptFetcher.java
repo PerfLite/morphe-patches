@@ -108,18 +108,12 @@ final class TranscriptFetcher {
     }
 
     private static String[] fetchFromInnertube(String videoId) throws Exception {
-        String response = fetchPlayerJson(videoId);
-        return new String[]{findBestCaptionUrl(response), extractPoToken(response)};
-    }
-
-    private static String fetchPlayerJson(String videoId) throws Exception {
         Utils.verifyOffMainThread();
 
         String body = "{\"context\":{\"client\":{\"clientName\":\"ANDROID\","
                 + "\"clientVersion\":\"20.10.38\"}},"
                 + "\"videoId\":\"" + videoId + "\"}";
 
-        //noinspection ExtractMethodRecommender
         HttpURLConnection conn = Requester.openConnection(INNERTUBE_PLAYER_URL);
         conn.setRequestMethod("POST");
         conn.setConnectTimeout(CONNECT_TIMEOUT_MS);
@@ -138,14 +132,8 @@ final class TranscriptFetcher {
         final int code = conn.getResponseCode();
         if (code != 200) throw new Exception("Unexpected response status: " + code);
 
-        return Requester.parseString(conn);
-    }
-
-    private static String unescapeInnertube(String text) {
-        return text.replace("\\u0026", "&")
-                .replace("\\u003d", "=")
-                .replace("\\u003e", ">")
-                .replace("\\u003c", "<");
+        String response = Requester.parseString(conn);
+        return new String[]{findBestCaptionUrl(response), extractPoToken(response)};
     }
 
     @Nullable
@@ -182,7 +170,11 @@ final class TranscriptFetcher {
             final int endIdx = json.indexOf('"', baseUrlIdx);
             if (endIdx < 0) break;
 
-            String url = unescapeInnertube(json.substring(baseUrlIdx, endIdx));
+            String url = json.substring(baseUrlIdx, endIdx)
+                    .replace("\\u0026", "&")
+                    .replace("\\u003d", "=")
+                    .replace("\\u003e", ">")
+                    .replace("\\u003c", "<");
 
             if (firstUrl == null) firstUrl = url;
             final boolean nonGemini = !url.contains("variant=gemini");
@@ -335,6 +327,7 @@ final class TranscriptFetcher {
 
         for (int i = 0, size = lines.size(); i < size; i++) {
             TranscriptSegment line = lines.get(i);
+            //noinspection SizeReplaceableByIsEmpty
             if (text.length() == 0) {
                 startMs = line.startMs;
                 sentenceLang = line.lang;
@@ -422,6 +415,7 @@ final class TranscriptFetcher {
     }
 
     private static boolean endsSentence(CharSequence text) {
+        //noinspection SizeReplaceableByIsEmpty
         if (text.length() == 0) return false;
         final char c = text.charAt(text.length() - 1);
         if (c != '.' && c != '!' && c != '?' && c != '…') return false;

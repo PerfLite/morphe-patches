@@ -157,7 +157,7 @@ public class YandexAudioEngine {
                     if (!mediaPlayer.isPlaying()) {
                         mediaPlayer.start();
                     }
-                    VotOriginalVolumePatch.setAudioMultiplier(app.morphe.extension.youtube.settings.Settings.VOT_ORIGINAL_AUDIO_VOLUME.get() / 100.0f);
+                    app.morphe.extension.youtube.patches.PlayerVolumePatch.setDuckMultiplier(app.morphe.extension.youtube.settings.Settings.VOT_ORIGINAL_AUDIO_VOLUME.get() / 100.0f);
                 } catch (Exception e) {
                     Logger.printException(() -> "Failed to start Yandex audio", e);
                 }
@@ -169,7 +169,7 @@ public class YandexAudioEngine {
         Utils.runOnMainThread(() -> {
             if (mediaPlayer != null && mediaPlayer.isPlaying()) {
                 mediaPlayer.pause();
-                VotOriginalVolumePatch.clearAudioMultiplier();
+                app.morphe.extension.youtube.patches.PlayerVolumePatch.clearDuckMultiplier();
             }
         });
     }
@@ -211,7 +211,7 @@ public class YandexAudioEngine {
                 Logger.printException(() -> "Failed to stop Yandex audio", e);
             }
             mediaPlayer = null;
-            VotOriginalVolumePatch.clearAudioMultiplier();
+            app.morphe.extension.youtube.patches.PlayerVolumePatch.clearDuckMultiplier();
         }
     }
     

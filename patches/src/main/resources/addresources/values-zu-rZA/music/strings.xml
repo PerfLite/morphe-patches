@@ -2,7 +2,7 @@
 <!--
 
     Strings with new lines must be raw strings where they're wrapped in quotes and new lines are not encoded.
-    Raw strings still requires escaping embedded double quotes but escaping embedded single quotes is optional.
+    Raw strings still require escaping embedded double quotes but escaping embedded single quotes is optional.
 
     Raw strings are required because Crowdin AI translations regularly gets confused and
     replace \n with an encoded new line character.
@@ -18,6 +18,8 @@ Second \"item\" text"</string>
 <resources>
   <!-- layout.branding.customBrandingPatch -->
   <!-- layout.branding.header.changeHeaderPatch -->
+  <!-- misc.album.albumMusicVideoPatch -->
+  <!-- 'Spoof video streams' should match the language used in 'morphe_spoof_video_streams_screen_title' -->
   <!-- interaction.downloads.downloadsPatch -->
   <!-- 'Download' should be translated using the same localized wording YouTube displays for the button. -->
   <!-- misc.settings.settingsPatch -->
@@ -32,6 +34,7 @@ Second \"item\" text"</string>
   <!-- interaction.dislikeredirection.disableDislikeRedirectionPatch -->
   <!-- layout.buttons.hideButtonsPatch -->
   <!-- layout.hide.actionbuttons.hideActionButtonsPatch -->
+  <!-- 'Live chat replay' should be translated using the same localized wording YouTube Music displays for the button. -->
   <!-- 'Lyrics' should be translated using the same localized wording YouTube Music displays for the button. -->
   <!-- 'Share' should be translated using the same localized wording YouTube Music displays for the button. -->
   <!-- 'Save' should be translated using the same localized wording YouTube Music displays for the button. -->
@@ -60,5 +63,9 @@ Second \"item\" text"</string>
   <!-- 'scrobbling' must be kept untranslated -->
   <!-- 'scrobbling' must be kept untranslated -->
   <!-- 'scrobbling' must be kept untranslated -->
+  <!-- layout.lyrics.lyricsPatch -->
+  <!-- 'LRCLIB' and 'KuGou' are service names and must be kept untranslated -->
+  <!-- Shown under the lyrics. The placeholder is a service name such as LRCLIB. -->
+  <!-- Tappable label under the lyrics that turns the translation on. -->
   <!-- misc.spoof.appversion.spoofAppVersionPatch -->
 </resources>

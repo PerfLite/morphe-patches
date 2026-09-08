@@ -22,23 +22,24 @@ import app.morphe.patcher.patch.BytecodePatchContext
 import app.morphe.patcher.patch.bytecodePatch
 import app.morphe.patcher.patch.resourcePatch
 import app.morphe.patcher.util.proxy.mutableTypes.MutableMethod.Companion.toMutable
+import app.morphe.patches.shared.BuildInnerTubeProtoRequestUriFingerprint
 import app.morphe.patches.shared.misc.fix.proto.fixProtoLibraryPatch
 import app.morphe.patches.shared.misc.fix.proto.parseByteArrayMethodRef
-import app.morphe.patches.shared.misc.media.mediaFetchPlayerConfigPatch
+import app.morphe.patches.shared.misc.request.buildRequestPatch
+import app.morphe.patches.shared.misc.request.hookBuildRequest
 import app.morphe.util.ResourceGroup
 import app.morphe.util.addInstructionsAtControlFlowLabel
 import app.morphe.util.copyResources
-import app.morphe.util.findFreeRegister
 import app.morphe.util.findInstructionIndicesReversedOrThrow
 import app.morphe.util.getReference
 import app.morphe.util.indexOfFirstInstructionOrThrow
 import app.morphe.util.indexOfFirstInstructionReversedOrThrow
 import app.morphe.util.insertLiteralOverride
+import app.morphe.util.registersUsed
 import app.morphe.util.setExtensionIsPatchIncluded
 import com.android.tools.smali.dexlib2.AccessFlags
 import com.android.tools.smali.dexlib2.Opcode
 import com.android.tools.smali.dexlib2.builder.MutableMethodImplementation
-import com.android.tools.smali.dexlib2.iface.instruction.FiveRegisterInstruction
 import com.android.tools.smali.dexlib2.iface.instruction.OneRegisterInstruction
 import com.android.tools.smali.dexlib2.iface.instruction.ReferenceInstruction
 import com.android.tools.smali.dexlib2.iface.instruction.TwoRegisterInstruction
@@ -64,6 +65,7 @@ private val spoofVideoStreamsResourcePatch = resourcePatch {
                 "polyfill.js",
                 "yt.solver.core.js", // yt-dlp-ejs 0.8.0: https://github.com/yt-dlp/ejs/releases/tag/0.8.0
                 "yt.solver.wrapper.js",
+                "po_token.html",
             )
         )
 
@@ -78,7 +80,7 @@ internal fun spoofVideoStreamsPatch(
     fixParsePlaybackResponseFeatureFlag: BytecodePatchBuilder.() -> Boolean,
     fixMediaSessionFeatureFlag: BytecodePatchBuilder.() -> Boolean,
     fixReelItemWatchResponseFeatureFlag: BytecodePatchBuilder.() -> Boolean,
-    useNewRequestBuilderFingerprint: BytecodePatchBuilder.() -> Boolean,
+    restoreMissingCuepointMethod: BytecodePatchBuilder.() -> Boolean,
     block: BytecodePatchBuilder.() -> Unit,
     executeBlock: BytecodePatchContext.() -> Unit = {},
 ) = bytecodePatch(
@@ -90,11 +92,7 @@ internal fun spoofVideoStreamsPatch(
     dependsOn(
         fixProtoLibraryPatch,
         spoofVideoStreamsResourcePatch,
-        mediaFetchPlayerConfigPatch(
-            extensionClass = EXTENSION_CLASS,
-            hasMediaSessionFeatureFlag = fixMediaSessionFeatureFlag,
-            highPriority = true
-        )
+        buildRequestPatch
     )
 
     execute {
@@ -133,57 +131,27 @@ internal fun spoofVideoStreamsPatch(
 
         // region Block /get_watch requests to fall back to /player requests.
 
-        if (useNewRequestBuilderFingerprint()) {
-            BuildPlayerRequestURIBuilderFingerprint.let {
-                it.method.apply {
-                    val index = it.instructionMatches.last().index
-                    val register = getInstruction<OneRegisterInstruction>(index).registerA
+        BuildInnerTubeProtoRequestUriFingerprint.let {
+            it.method.apply {
+                val match = it.instructionMatches.last()
+                val index = match.index
+                val register = match.instruction.registersUsed[0]
 
-                    addInstructionsAtControlFlowLabel(
-                        index,
-                        $$"""
-                            invoke-static { v$$register }, $$EXTENSION_CLASS->blockGetWatchRequest(Landroid/net/Uri$Builder;)Landroid/net/Uri$Builder;
-                            move-result-object v$$register
-                        """
-                    )
-                }
-            }
-        } else {
-            BuildPlayerRequestURIFingerprint.let {
-                it.method.apply {
-                    val invokeToStringIndex = it.instructionMatches.first().index
-                    val uriRegister = getInstruction<FiveRegisterInstruction>(invokeToStringIndex).registerC
-
-                    addInstructions(
-                        invokeToStringIndex,
-                        """
-                            invoke-static { v$uriRegister }, $EXTENSION_CLASS->blockGetWatchRequest(Landroid/net/Uri;)Landroid/net/Uri;
-                            move-result-object v$uriRegister
-                        """
-                    )
-                }
+                addInstructionsAtControlFlowLabel(
+                    index,
+                    $$"""
+                        invoke-static { v$$register }, $$EXTENSION_CLASS->blockGetWatchRequest(Landroid/net/Uri$Builder;)Landroid/net/Uri$Builder;
+                        move-result-object v$$register
+                    """
+                )
             }
         }
 
         // endregion
 
-        // region Get replacement streams at player requests.
+        // region Fetch streaming data.
 
-        BuildRequestFingerprint.let {
-            it.method.apply {
-                val newRequestBuilderIndex = it.instructionMatches.first().index
-                val buildRequestMethodURLRegister = getInstruction<FiveRegisterInstruction>(newRequestBuilderIndex).registerD
-                val freeRegister = findFreeRegister(newRequestBuilderIndex, buildRequestMethodURLRegister)
-
-                addInstructions(
-                    newRequestBuilderIndex,
-                    """
-                        move-object v$freeRegister, p1
-                        invoke-static { v$buildRequestMethodURLRegister, v$freeRegister }, $EXTENSION_CLASS->fetchStreams(Ljava/lang/String;Ljava/util/Map;)V
-                    """
-                )
-            }
-        }
+        hookBuildRequest("$EXTENSION_CLASS->fetchStreams")
 
         // endregion
 
@@ -201,8 +169,13 @@ internal fun spoofVideoStreamsPatch(
                 val setStreamingDataField = it.instructionMatches[1].instruction.getReference<FieldReference>()!!
                 val setPlayerConfigField = it.instructionMatches.last().instruction.getReference<FieldReference>()!!
                 val playerConfigClass = setPlayerConfigField.type
-                val mediaCommonConfigField = abrStateDataFingerprint(playerConfigClass)
-                    .instructionMatches[1].instruction.getReference<FieldReference>()!!
+                val (mediaCommonConfigField, mediaUstreamerRequestConfig) =
+                    with(abrStateDataFingerprint(playerConfigClass)) {
+                        Pair(
+                            instructionMatches[1].instruction.getReference<FieldReference>()!!,
+                            instructionMatches[2].instruction.getReference<FieldReference>()!!,
+                        )
+                    }
 
                 val (createBuilderMethod, mergeFromMethod) =
                     with(PlayerConfigBuilderFingerprint) {
@@ -219,6 +192,21 @@ internal fun spoofVideoStreamsPatch(
                             instructionMatches[6].instruction.getReference<MethodReference>()!!
                         )
                     }
+
+                // The replacement streams can be of another video, such as an album track played
+                // as its song version, and then the app keeps the timeline of the music video.
+                val videoLengthField = classDefBy(videoDetailsClass).fields
+                    .singleOrNull { field -> field.type == "J" }
+                val overrideVideoLength = if (videoLengthField == null) "nop" else """
+                    invoke-static { v2 }, $EXTENSION_CLASS->getVideoLengthSeconds(Ljava/lang/String;)J
+                    move-result-wide v3
+                    const-wide/16 v6, 0x0
+                    cmp-long v0, v3, v6
+                    if-lez v0, :length_overridden
+                    iput-wide v3, p1, $videoDetailsClass->${videoLengthField.name}:J
+                    :length_overridden
+                    nop
+                """
 
                 val castInstruction = if (castReference.type != buildMethod.definingClass) """
                     check-cast v4, $castReference
@@ -266,6 +254,9 @@ internal fun spoofVideoStreamsPatch(
                             if-eqz v6, :disabled
                             iput-object v6, p0, $setStreamingDataField
 
+                            # Set video length.
+                            $overrideVideoLength
+
                             # Get player config.
                             invoke-static { v2 }, $EXTENSION_CLASS->getPlayerConfig(Ljava/lang/String;)[B
                             move-result-object v3
@@ -282,12 +273,25 @@ internal fun spoofVideoStreamsPatch(
                             invoke-virtual { v5 }, $buildMethod
                             move-result-object v5
                             check-cast v5, $playerConfigClass
+
+                            # Check if player config contains android media lib config.
+                            invoke-static { v2 }, $EXTENSION_CLASS->hasAndroidMedia(Ljava/lang/String;)Z
+                            move-result v3
+                            if-nez v3, :override_all_player_config
+
                             iget-object v6, v5, $mediaCommonConfigField
                             if-eqz v6, :disabled
+                            iget-object v7, v6, $mediaUstreamerRequestConfig
+                            if-eqz v7, :disabled
 
-                            # Set media common config.
+                            # Set media uStreamer request config.
                             iget-object v5, p2, $setPlayerConfigField
+                            iget-object v6, v5, $mediaCommonConfigField
+                            iput-object v7, v6, $mediaUstreamerRequestConfig
                             iput-object v6, v5, $mediaCommonConfigField
+
+                            :override_all_player_config
+                            # Set player config.
                             iput-object v5, p2, $setPlayerConfigField
 
                             :disabled
@@ -357,11 +361,16 @@ internal fun spoofVideoStreamsPatch(
 
         // region Fix iOS livestream current time.
 
-        HlsCurrentTimeFingerprint.let {
-            it.method.insertLiteralOverride(
-                it.instructionMatches.first().index,
-                "$EXTENSION_CLASS->fixHLSCurrentTime(Z)Z"
-            )
+        HlsCurrentTimeFingerprint.method.apply {
+            // Flag can exist in multiple places in the method.
+            findInstructionIndicesReversedOrThrow(
+                HlsCurrentTimeFingerprint.filters!!.first()
+            ).forEach { match ->
+                insertLiteralOverride(
+                    match,
+                    "$EXTENSION_CLASS->fixHLSCurrentTime(Z)Z"
+                )
+            }
         }
 
         // endregion
@@ -402,7 +411,14 @@ internal fun spoofVideoStreamsPatch(
 
         //endregion
 
-        // region turn off stream config replacement feature flag.
+        // region Turn off stream config replacement feature flag.
+
+        MediaFetchHotConfigFingerprint.let {
+            it.method.insertLiteralOverride(
+                it.instructionMatches.first().index,
+                "$EXTENSION_CLASS->useMediaFetchHotConfigReplacement(Z)Z"
+            )
+        }
 
         if (fixMediaFetchHotConfigAlternative()) {
             MediaFetchHotConfigAlternativeFingerprint.let {
@@ -422,12 +438,92 @@ internal fun spoofVideoStreamsPatch(
             }
         }
 
+        if (fixMediaSessionFeatureFlag()) {
+            MediaSessionFeatureFlagFingerprint.let {
+                it.method.insertLiteralOverride(
+                    it.instructionMatches.first().index,
+                    "$EXTENSION_CLASS->useMediaSessionFeatureFlag(Z)Z"
+                )
+            }
+        }
+
         if (fixReelItemWatchResponseFeatureFlag()) {
-            ReelItemWatchResponseFeatureFlagFingerprint.let {
+            ReelItemWatchResponseFeatureFlagFingerprint.matchAll().forEach {
                 it.method.insertLiteralOverride(
                     it.instructionMatches.first().index,
                     "$EXTENSION_CLASS->useReelItemWatchResponseFeatureFlag(Z)Z"
                 )
+            }
+        }
+
+        // Restore missing method sometimes called by
+        // com.google.android.libraries.youtube.media.interfaces.NetFetchCallbacks$CppProxy
+        //
+        // The 'native_onCuepointList(long memoryAddress, CuepointListOuterClass cuepointListOuterClass)' method exists,
+        // but the 'parseFrom' method is missing from 'CuepointListOuterClass'.
+        //
+        // This seems to be because the 'GeneratedMessage' class was generated instead of the 'GeneratedMessageLite' class
+        // due to incorrect option settings in the proto file (e.g. 'option optimize_for = SPEED') when Google bulit the app.
+        //
+        // This issue was fixed in YT 21.13 and YTM 9.12.
+        // See: https://github.com/MorpheApp/morphe-patches/pull/2284#issuecomment-5204046377
+        if (restoreMissingCuepointMethod()) {
+            CuepointListFingerprint.classDef.apply {
+                if (methods.none {
+                        it.name == "parseFrom"
+                                && it.parameterTypes.isNotEmpty()
+                                && it.parameterTypes.first() == "Ljava/nio/ByteBuffer;"
+                    }
+                ) {
+                    val cuepointListType = $$"Lcom/google/android/apps/youtube/proto/streaming/CuepointListOuterClass$CuepointList;"
+                    val cueField = fields.single {
+                        it.type == cuepointListType
+                    }
+                    val superClass = superclass!!
+
+                    // Verify the superclass method exists.
+                    Fingerprint(
+                        definingClass = superClass,
+                        name = "parseFrom",
+                        returnType = superClass,
+                        parameters = listOf(
+                            superClass,
+                            "Ljava/nio/ByteBuffer;",
+                            "Lcom/google/protobuf/ExtensionRegistryLite;"
+                        )
+                    ).method
+
+                    methods.add(
+                        ImmutableMethod(
+                            type,
+                            "parseFrom",
+                            listOf(
+                                ImmutableMethodParameter("Ljava/nio/ByteBuffer;", null, null),
+                                ImmutableMethodParameter(
+                                    "Lcom/google/protobuf/ExtensionRegistryLite;",
+                                    null,
+                                    null
+                                )
+                            ),
+                            cuepointListType,
+                            AccessFlags.PUBLIC.value or AccessFlags.STATIC.value,
+                            null,
+                            null,
+                            MutableMethodImplementation(3),
+                        ).toMutable().apply {
+                            addInstructions(
+                                0,
+                                """    
+                                    sget-object v0, $cueField
+                                    invoke-static { v0, p0, p1 }, $superClass->parseFrom(${superClass}Ljava/nio/ByteBuffer;Lcom/google/protobuf/ExtensionRegistryLite;)$superClass
+                                    move-result-object p0
+                                    check-cast p0, $cuepointListType
+                                    return-object p0
+                                """
+                            )
+                        }
+                    )
+                }
             }
         }
 
