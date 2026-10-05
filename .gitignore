@@ -35,3 +35,7 @@ google-services.json
 
 # NPM modules
 node_modules/
+
+# Local reference repositories
+/voice-over-translation/
+/vtrans/

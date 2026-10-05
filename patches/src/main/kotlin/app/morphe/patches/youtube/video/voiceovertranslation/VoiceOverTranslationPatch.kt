@@ -16,7 +16,6 @@ import app.morphe.patches.shared.misc.settings.preference.SwitchPreference
 import app.morphe.patches.shared.misc.settings.preference.TextPreference
 import app.morphe.patches.youtube.layout.player.buttons.addPlayerBottomButton
 import app.morphe.patches.youtube.layout.player.buttons.playerOverlayButtonsHookPatch
-import app.morphe.patches.youtube.layout.player.icons.copyPlayerButtonIcons
 import app.morphe.patches.youtube.misc.extension.sharedExtensionPatch
 import app.morphe.patches.youtube.misc.playercontrols.addLegacyBottomControl
 import app.morphe.patches.youtube.misc.playercontrols.initializeLegacyBottomControl
@@ -28,6 +27,8 @@ import app.morphe.patches.youtube.video.information.videoInformationPatch
 import app.morphe.patches.youtube.video.information.videoTimeHook
 import app.morphe.patches.youtube.video.videoid.hookVideoId
 import app.morphe.patches.youtube.video.volume.playerVolumeHookPatch
+import app.morphe.util.ResourceGroup
+import app.morphe.util.copyResources
 
 private const val EXTENSION_CLASS =
     "Lapp/morphe/extension/youtube/patches/voiceovertranslation/VoiceOverTranslationPatch;"
@@ -36,12 +37,17 @@ private const val EXTENSION_BUTTON =
     "Lapp/morphe/extension/youtube/videoplayer/VoiceOverTranslationButton;"
 
 private val voiceOverTranslationResourcePatch = resourcePatch {
-    dependsOn(
-        legacyPlayerControlsPatch
-    )
+    dependsOn(legacyPlayerControlsPatch)
 
     execute {
-        copyPlayerButtonIcons("voiceovertranslationbutton", "morphe_yt_vot")
+        copyResources(
+            "voiceovertranslationbutton",
+            ResourceGroup(
+                "drawable",
+                "morphe_yt_vot.xml",
+                "morphe_yt_vot_bold.xml",
+            )
+        )
 
         addLegacyBottomControl("voiceovertranslationbutton")
     }
@@ -70,7 +76,7 @@ val voiceOverTranslationPatch = bytecodePatch(
                 key = "morphe_vot_screen",
                 sorting = PreferenceScreenPreference.Sorting.UNSORTED,
                 preferences = setOf(
-                    SwitchPreference("morphe_vot_enabled", summary = true),
+                    SwitchPreference("morphe_vot_enabled"),
                     ListPreference("morphe_vot_caption_language"),
                     NonInteractivePreference("morphe_vot_max_speech_rate",
                         tag = "app.morphe.extension.shared.settings.preference.SeekBarPreference",

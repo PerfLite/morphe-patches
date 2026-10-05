@@ -1,0 +1,74 @@
+syntax = "proto3";
+
+package yandex.vtrans;
+
+option java_package = "app.morphe.extension.youtube.patches.voiceovertranslation.yandex";
+
+message YandexSessionRequest {
+  string uuid = 1;
+  string module = 2;
+}
+
+message YandexSessionResponse {
+  string secret_key = 1;
+  int32 expires = 2;
+}
+
+message VideoTranslationHelpObject {
+  string help_type = 1;
+  string help_url = 2;
+}
+
+message VideoTranslationRequest {
+  string original_url = 3;
+  string device_id = 4;
+  bool is_first_request = 5;
+  double original_duration = 6;
+  bool unknown0 = 7;
+  string original_language = 8;
+  bool force_source_lang = 9;
+  bool unknown1 = 10;
+  repeated VideoTranslationHelpObject help_objects = 11;
+  bool was_stream = 13;
+  string translation_language = 14;
+  bool unknown2 = 15;
+  int32 config_version = 16;
+  bool bypass_cache = 17;
+  bool use_lively_voice = 18;
+  string video_title = 19;
+}
+
+enum VideoTranslationResponseStatus {
+  FAILED = 0;
+  FINISHED = 1;
+  WAITING = 2;
+  LONG_WAITING = 3;
+  PART_CONTENT = 5;
+  AUDIO_REQUESTED = 6;
+}
+
+message VideoTranslationResponse {
+  string translation_url = 1;
+  double translation_duration = 2;
+  VideoTranslationResponseStatus response_status = 4;
+  int32 remaining_time = 5;
+  int32 unknown0 = 6;
+  string translation_id = 7;
+  string language = 8;
+  string response_message = 9;
+  bool is_lively_voice = 10;
+  bool allow_to_translate_video = 11;
+  int32 should_retry = 12;
+  int32 unknown3 = 13;
+}
+
+message AudioBufferObject {
+  string file_id = 1;
+  bytes audio_file = 2;
+}
+
+message VideoTranslationAudioRequest {
+  string translation_id = 1;
+  string original_url = 2;
+  AudioBufferObject audio_info = 6;
+}
