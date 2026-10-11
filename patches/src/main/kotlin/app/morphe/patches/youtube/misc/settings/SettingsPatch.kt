@@ -18,6 +18,7 @@ import app.morphe.patcher.patch.bytecodePatch
 import app.morphe.patcher.patch.resourcePatch
 import app.morphe.patcher.util.proxy.mutableTypes.MutableMethod.Companion.toMutable
 import app.morphe.patches.all.misc.clone.setOrGetFallbackPackageName
+import app.morphe.patches.all.misc.crashlog.crashLogPatch
 import app.morphe.patches.all.misc.fix.openurllinks.removeLinkVerification
 import app.morphe.patches.all.misc.resources.addAppResources
 import app.morphe.patches.all.misc.resources.addResourcesPatch
@@ -127,8 +128,8 @@ private val settingsResourcePatch = resourcePatch {
                 "morphe_settings_screen_00_about_bold.xml",
                 "morphe_settings_screen_01_ads.xml",
                 "morphe_settings_screen_01_ads_bold.xml",
-                "morphe_settings_screen_02_alt_thumbnails.xml",
-                "morphe_settings_screen_02_alt_thumbnails_bold.xml",
+                "morphe_settings_screen_02_dearrow.xml",
+                "morphe_settings_screen_02_dearrow_bold.xml",
                 "morphe_settings_screen_03_feed.xml",
                 "morphe_settings_screen_03_feed_bold.xml",
                 "morphe_settings_screen_04_general.xml",
@@ -227,6 +228,9 @@ val settingsPatch = bytecodePatch(
         addLicensePatch,
         removeLinkVerification,
         checkEnvironmentPatch,
+        crashLogPatch(
+            mainActivityFingerprint = YouTubeActivityOnCreateFingerprint
+        ),
         experimentalAppNoticePatch(
             mainActivityFingerprint = YouTubeActivityOnCreateFingerprint,
             recommendedAppVersion = COMPATIBILITY_YOUTUBE.targets.first { !it.isExperimental }.version!!
@@ -475,11 +479,11 @@ object PreferenceScreen : BasePreferenceScreen() {
         iconBold = "@drawable/morphe_settings_screen_01_ads_bold",
         layout = "@layout/preference_with_icon"
     )
-    val ALTERNATIVE_THUMBNAILS = Screen(
-        key = "morphe_settings_screen_02_alt_thumbnails",
+    val DEARROW = Screen(
+        key = "morphe_settings_screen_02_dearrow",
         summaryKey = null,
-        icon = "@drawable/morphe_settings_screen_02_alt_thumbnails",
-        iconBold = "@drawable/morphe_settings_screen_02_alt_thumbnails_bold",
+        icon = "@drawable/morphe_settings_screen_02_dearrow",
+        iconBold = "@drawable/morphe_settings_screen_02_dearrow_bold",
         layout = "@layout/preference_with_icon",
         sorting = Sorting.UNSORTED
     )

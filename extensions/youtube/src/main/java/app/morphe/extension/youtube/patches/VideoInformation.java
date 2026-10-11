@@ -26,6 +26,7 @@ import app.morphe.extension.shared.Logger;
 import app.morphe.extension.shared.Utils;
 import app.morphe.extension.shared.patches.ExoPlayerInterface;
 import app.morphe.extension.shared.patches.components.ContextInterface;
+import app.morphe.extension.youtube.patches.originaltitles.RestoreOriginalTitlesPatch;
 import app.morphe.extension.youtube.patches.playback.speed.RememberPlaybackSpeedPatch;
 import app.morphe.extension.youtube.patches.voiceovertranslation.VoiceOverTranslationPatch;
 import app.morphe.extension.youtube.settings.Settings;
@@ -305,7 +306,10 @@ public final class VideoInformation {
      * @return Playback pitch to use.
      */
     public static float overridePlaybackPitch(float speed, float pitch) {
-        return pitch;
+        // The app sets its own pitch every time the speed changes, which resets the selected pitch.
+        return isPlaybackAudioPitchEnabled()
+                ? playbackAudioPitch
+                : pitch;
     }
 
     /**
@@ -339,8 +343,11 @@ public final class VideoInformation {
         Logger.printDebug(() -> "Extracted Video Title: " + videoTitle);
     }
 
+    /**
+     * @return The title of the video, or the title restored by {@link RestoreOriginalTitlesPatch} if enabled.
+     */
     public static String getVideoTitle() {
-        return videoTitle;
+        return RestoreOriginalTitlesPatch.getTitle(getVideoId(), videoTitle);
     }
 
     /**

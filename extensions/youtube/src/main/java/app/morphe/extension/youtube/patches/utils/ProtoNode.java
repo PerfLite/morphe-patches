@@ -56,7 +56,7 @@ public final class ProtoNode {
     @Nullable
     private Long varint;
     /**
-     * If the text of this field or a sub field is modified.
+     * If the text of this field or a sub-field is modified.
      */
     private boolean modified;
 
@@ -160,6 +160,10 @@ public final class ProtoNode {
         } catch (CharacterCodingException ex) {
             return null;
         }
+    }
+
+    public int getFieldNumber() {
+        return fieldNumber;
     }
 
     /**

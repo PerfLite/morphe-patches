@@ -38,29 +38,81 @@ public final class PlayerFlyoutMenuComponentsFilter extends Filter {
         topFlyoutMenuVisible = false;
     }
 
-    public static final class HideAudioFlyoutMenuAvailability implements Setting.Availability {
+    public static final class HideAmbientModeFlyoutMenuAvailability implements Setting.Availability {
         @Override
         public boolean isAvailable() {
-            return !SpoofVideoStreamsPatch.spoofingToClientWithNoMultiAudioStreams();
+            return !Settings.DISABLE_AMBIENT_MODE.get() && !Settings.HIDE_SETTINGS_BUTTON.get();
         }
 
         @Override
         public List<Setting<?>> getParentSettings() {
-            return List.of(SharedYouTubeSettings.SPOOF_VIDEO_STREAMS);
+            return List.of(Settings.DISABLE_AMBIENT_MODE, Settings.HIDE_SETTINGS_BUTTON);
         }
     }
 
-    private final ByteArrayFilterGroup overflowMenuItem = new ByteArrayFilterGroup(
-            null,
-            "overflow_menu_item.e"
-    );
+    public static final class HideAudioTrackFlyoutMenuAvailability implements Setting.Availability {
+        @Override
+        public boolean isAvailable() {
+            return !SpoofVideoStreamsPatch.spoofingToClientWithNoMultiAudioStreams()
+                    && !Settings.HIDE_SETTINGS_BUTTON.get();
+        }
+
+        @Override
+        public List<Setting<?>> getParentSettings() {
+            return List.of(SharedYouTubeSettings.SPOOF_VIDEO_STREAMS, Settings.HIDE_SETTINGS_BUTTON);
+        }
+    }
+
+    public static final class HideAudioTrackFlyoutMenuFooterAvailability implements Setting.Availability {
+        @Override
+        public boolean isAvailable() {
+            return !Settings.HIDE_PLAYER_FLYOUT_AUDIO_TRACK.get()
+                    && !Settings.HIDE_SETTINGS_BUTTON.get()
+                    && !SpoofVideoStreamsPatch.spoofingToClientWithNoMultiAudioStreams();
+        }
+
+        @Override
+        public List<Setting<?>> getParentSettings() {
+            return List.of(
+                    Settings.HIDE_PLAYER_FLYOUT_AUDIO_TRACK,
+                    Settings.HIDE_SETTINGS_BUTTON,
+                    SharedYouTubeSettings.SPOOF_VIDEO_STREAMS
+            );
+        }
+    }
+
+    public static final class HideCaptionsFlyoutMenuHeaderFooterAvailability implements Setting.Availability {
+        @Override
+        public boolean isAvailable() {
+            return !Settings.HIDE_PLAYER_FLYOUT_CAPTIONS.get() && !Settings.HIDE_SETTINGS_BUTTON.get();
+        }
+
+        @Override
+        public List<Setting<?>> getParentSettings() {
+            return List.of(Settings.HIDE_PLAYER_FLYOUT_CAPTIONS, Settings.HIDE_SETTINGS_BUTTON);
+        }
+    }
+
+    public static final class HideQualityFlyoutMenuHeaderFooterAvailability implements Setting.Availability {
+        @Override
+        public boolean isAvailable() {
+            return !Settings.HIDE_PLAYER_FLYOUT_QUALITY.get() && !Settings.HIDE_SETTINGS_BUTTON.get();
+        }
+
+        @Override
+        public List<Setting<?>> getParentSettings() {
+            return List.of(Settings.HIDE_PLAYER_FLYOUT_QUALITY, Settings.HIDE_SETTINGS_BUTTON);
+        }
+    }
+
     private final ByteArrayFilterGroup videoPlayerSettingsQualityButton = new ByteArrayFilterGroup(
             null,
             "quality_sheet_header.e"
     );
     private final ByteArrayFilterGroup shortsPlayerSettingsCaptionsButton = new ByteArrayFilterGroup(
             null,
-            "closed_captions"
+            "closed_captions",
+            "closed_caption_" // 20.21
     );
     private final ByteArrayFilterGroup shortsPlayerSettingsAudioTrackButton = new ByteArrayFilterGroup(
             null,
@@ -210,11 +262,11 @@ public final class PlayerFlyoutMenuComponentsFilter extends Filter {
 
             // Verify that the open flyout menu is the first one and not the 'others'
             // one, by checking the filtering of its first button (quality menu).
+            // The path already starts with the overflow menu item, while the buffer
+            // does not always contain it (20.21 keeps it in a separate buffer).
             boolean videoPlayerFlyout = PlayerType.getCurrent().isMaximizedOrFullscreen()
-                    && overflowMenuItem.check(buffer).isFiltered()
                     && videoPlayerSettingsQualityButton.check(buffer).isFiltered();
             boolean shortsPlayerFlyout = ShortsPlayerState.isOpen()
-                    && overflowMenuItem.check(buffer).isFiltered()
                     && shortsPlayerSettingsCaptionsButton.check(buffer).isFiltered();
             if (videoPlayerFlyout || shortsPlayerFlyout) {
                 topFlyoutMenuVisible = true;
@@ -222,9 +274,9 @@ public final class PlayerFlyoutMenuComponentsFilter extends Filter {
 
             // Shorts also use this player flyout panel
             if (ShortsPlayerState.isOpen()) {
-                return (Settings.HIDE_PLAYER_FLYOUT_CAPTIONS.get()
+                return (Settings.HIDE_SHORTS_FLYOUT_CAPTIONS.get()
                         && shortsPlayerSettingsCaptionsButton.check(buffer).isFiltered())
-                        || (Settings.HIDE_PLAYER_FLYOUT_AUDIO_TRACK.get()
+                        || (Settings.HIDE_SHORTS_FLYOUT_AUDIO_TRACK.get()
                         && shortsPlayerSettingsAudioTrackButton.check(buffer).isFiltered());
             }
 

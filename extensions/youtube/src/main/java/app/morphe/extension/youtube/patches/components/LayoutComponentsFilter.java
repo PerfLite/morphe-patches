@@ -26,9 +26,12 @@ import androidx.annotation.Nullable;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import app.morphe.extension.shared.Logger;
+import app.morphe.extension.shared.ResourceType;
+import app.morphe.extension.shared.ResourceUtils;
 import app.morphe.extension.shared.StringTrieSearch;
 import app.morphe.extension.shared.Utils;
 import app.morphe.extension.shared.patches.components.BufferAsciiStrings;
@@ -46,6 +49,9 @@ import app.morphe.extension.youtube.shared.NavigationBar.NavigationButton;
 
 @SuppressWarnings("unused")
 public final class LayoutComponentsFilter extends Filter {
+    public static final int CONTAINER_ID = ResourceUtils.getIdentifier(
+            ResourceType.ID, "time_bar_chapter_title_container");
+
     private static final ByteArrayFilterGroup mixPlaylistUrlBuffer = new ByteArrayFilterGroup(
             null,
             "?list=RD",
@@ -71,9 +77,11 @@ public final class LayoutComponentsFilter extends Filter {
     private final ByteArrayFilterGroup channelProfileSubscribeButtonBuffer;
     private final ByteArrayFilterGroup buttonComponentBuffer;
     private final StringFilterGroup channelFilterBar;
+    private final StringFilterGroup channelHandle;
     private final StringFilterGroup channelMembersOnlyChipId;
     private final StringFilterGroup chipBar;
     private final StringFilterGroup communityPosts;
+    private final StringFilterGroup compactChannel;
     private final StringFilterGroup compactChannelBarInner;
     private final StringFilterGroup compactChannelBarInnerButton;
     private final ByteArrayFilterGroup joinMembershipButton;
@@ -93,7 +101,7 @@ public final class LayoutComponentsFilter extends Filter {
     private static final AtomicInteger singleItemInformationPanelIndex = new AtomicInteger(-1);
     private final StringFilterGroup surveys;
     private final StringFilterGroup videoLabels;
-    private final ByteArrayFilterGroupList videoLabelsGroupList = new ByteArrayFilterGroupList();
+    private final ByteArrayFilterGroup videoLabelsBuffer;
     private final StringFilterGroup videoRecommendationLabels;
 
     public enum ExpandableCardStyle {
@@ -227,6 +235,11 @@ public final class LayoutComponentsFilter extends Filter {
                 "button.e"
         );
 
+        channelHandle = new StringFilterGroup(
+                Settings.HIDE_HANDLE,
+                "content_metadata.e"
+        );
+
         final var channelWatermark = new StringFilterGroup(
                 Settings.HIDE_CHANNEL_WATERMARK,
                 "featured_channel_watermark_overlay"
@@ -242,14 +255,14 @@ public final class LayoutComponentsFilter extends Filter {
                 "compact_banner"
         );
 
+        compactChannel = new StringFilterGroup(
+                Settings.HIDE_CHANNEL_BUTTONS,
+                "compact_channel.e"
+        );
+
         final var compactChannelBar = new StringFilterGroup(
                 Settings.HIDE_CHANNEL_BAR,
                 "compact_channel_bar"
-        );
-
-        final var compactChannelCommunityButton = new StringFilterGroup(
-                Settings.HIDE_COMMUNITY_BUTTON,
-                "compact_channel$FEcommunity"
         );
 
         compactChannelBarInner = new StringFilterGroup(
@@ -408,20 +421,13 @@ public final class LayoutComponentsFilter extends Filter {
         );
 
         videoLabels = new StringFilterGroup(
+                Settings.HIDE_VIDEO_LABELS,
+                "|ContainerType|ContainerType|ContainerType|ContainerType|"
+        );
+
+        videoLabelsBuffer = new ByteArrayFilterGroup(
                 null,
                 "badge.e"
-        );
-        videoLabelsGroupList.addAll(
-                new ByteArrayFilterGroup(
-                        Settings.HIDE_AUTO_DUBBED_LABEL,
-                        "yt_outline_person_radar",
-                        "yt_outline_experimental_person_waves"
-                ),
-                new ByteArrayFilterGroup(
-                        Settings.HIDE_HYPED_LABEL,
-                        "yt_fill_star_shooting",
-                        "yt_fill_experimental_hype"
-                )
         );
 
         final var videoTitle = new StringFilterGroup(
@@ -430,7 +436,7 @@ public final class LayoutComponentsFilter extends Filter {
         );
 
         videoRecommendationLabels = new StringFilterGroup(
-                Settings.HIDE_VIDEO_RECOMMENDATION_LABELS,
+                Settings.HIDE_VIDEO_LABELS,
                 "endorsement_header_footer.e"
         );
 
@@ -444,6 +450,7 @@ public final class LayoutComponentsFilter extends Filter {
                 artistCard,
                 audioTrackButton,
                 channelFilterBar,
+                channelHandle,
                 channelLinksPreview,
                 channelMembersShelf,
                 channelProfileSubscribeButton,
@@ -451,7 +458,7 @@ public final class LayoutComponentsFilter extends Filter {
                 chipBar,
                 compactBanner,
                 compactChannelBar,
-                compactChannelCommunityButton,
+                compactChannel,
                 compactChannelBarInner,
                 communityPosts,
                 crowdfundingBox,
@@ -535,7 +542,7 @@ public final class LayoutComponentsFilter extends Filter {
                               FilterContentType contentType,
                               int contentIndex) {
         if (matchedGroup == exploreTopicsShelf) {
-            return NavigationButton.getSelectedNavigationButton() != NavigationButton.LIBRARY;
+            return NavigationButton.getSelectedNavigationButton(contextInterface) != NavigationButton.LIBRARY;
         }
 
         // The groups are excluded from the filter due to the exceptions list below.
@@ -561,17 +568,26 @@ public final class LayoutComponentsFilter extends Filter {
             return false;
         }
 
+        if (matchedGroup == channelHandle) {
+            return Utils.startsWith(path, "page_header.e")
+                    && NavigationButton.getSelectedNavigationButton(contextInterface) == NavigationButton.LIBRARY;
+        }
+
         if (matchedGroup == channelProfileSubscribeButton) {
             return isChannelProfileSubscribeButtonHidden(path, buffer, asciiStrings);
         }
 
         if (matchedGroup == chipBar) {
             return contentIndex == 0 &&
-                    NavigationButton.getSelectedNavigationButton() == NavigationBar.NavigationButton.LIBRARY;
+                    NavigationButton.getSelectedNavigationButton(contextInterface) == NavigationBar.NavigationButton.LIBRARY;
         }
 
         if (matchedGroup == communityPosts) {
             return contextInterface.isHomeFeedOrRelatedVideo() || contextInterface.isSubscriptionOrLibrary();
+        }
+
+        if (matchedGroup == compactChannel) {
+            return Utils.contains(path, "button.e");
         }
 
         if (matchedGroup == compactChannelBarInner) {
@@ -650,7 +666,7 @@ public final class LayoutComponentsFilter extends Filter {
         }
 
         if (matchedGroup == videoLabels) {
-            return videoLabelsGroupList.check(buffer).isFiltered();
+            return videoLabelsBuffer.check(buffer).isFiltered();
         }
 
         if (matchedGroup == videoRecommendationLabels) {
@@ -782,13 +798,15 @@ public final class LayoutComponentsFilter extends Filter {
                         // The header keeps the space of the subscribe button if it's removed,
                         // so it's hidden by the Litho filter.
                         hasHiddenSubscribeButton = Settings.HIDE_SUBSCRIBE_BUTTON_IN_CHANNEL_PAGE.get();
-                    } else if (ProtoNode.field(fields, BUTTON_VIEW_MODEL_FIELD) == null) {
-                        continue;
-                    } else if (isPageHeaderButtonHidden(fields)) {
-                        button.remove();
-                        modified = true;
                     } else {
-                        visibleButtons++;
+                        if (ProtoNode.field(fields, BUTTON_VIEW_MODEL_FIELD) != null) {
+                            if (isPageHeaderButtonHidden(fields)) {
+                                button.remove();
+                                modified = true;
+                            } else {
+                                visibleButtons++;
+                            }
+                        }
                     }
                 }
 
@@ -1296,33 +1314,37 @@ public final class LayoutComponentsFilter extends Filter {
     }
 
     private static void hideAccountItem(View textView, CharSequence menuTitleCharSequence, int[] depths) {
-        if (!Settings.HIDE_ACCOUNT_MENU.get() || menuTitleCharSequence == null) return;
-        if (accountMenuFilterStrings.isEmpty()) return;
+        try {
+            if (!Settings.HIDE_ACCOUNT_MENU.get() || menuTitleCharSequence == null) return;
+            if (accountMenuFilterStrings.isEmpty()) return;
 
-        String menuTitleString = menuTitleCharSequence.toString();
+            String menuTitleString = menuTitleCharSequence.toString();
 
-        boolean matches = false;
-        String menuTitleLower = menuTitleString.toLowerCase();
-        for (String filter : accountMenuFilterStrings) {
-            if (menuTitleLower.contains(filter.toLowerCase())) {
-                matches = true;
-                break;
-            }
-        }
-        if (!matches) return;
-
-        // Not all versions have the same depth. So perform a scan
-        // along all available depths, to find the right one.
-        for (int depth : depths) {
-            ViewParent parent = Utils.getParentView(textView, depth);
-            if (parent instanceof View current) {
-                Utils.hideViewByLayoutParams(current);
-                current.setVisibility(View.GONE);
-                if (current.getLayoutParams() instanceof ViewGroup.MarginLayoutParams marginParams) {
-                    marginParams.setMargins(0, 0, 0, 0);
-                    current.setLayoutParams(marginParams);
+            boolean matches = false;
+            String menuTitleLower = menuTitleString.toLowerCase(Locale.ROOT);
+            for (String filter : accountMenuFilterStrings) {
+                if (menuTitleLower.contains(filter.toLowerCase(Locale.ROOT))) {
+                    matches = true;
+                    break;
                 }
             }
+            if (!matches) return;
+
+            // Not all versions have the same depth. So perform a scan
+            // along all available depths, to find the right one.
+            for (int depth : depths) {
+                ViewParent parent = Utils.getParentView(textView, depth);
+                if (parent instanceof View current) {
+                    Utils.hideViewByLayoutParams(current);
+                    current.setVisibility(View.GONE);
+                    if (current.getLayoutParams() instanceof ViewGroup.MarginLayoutParams marginParams) {
+                        marginParams.setMargins(0, 0, 0, 0);
+                        current.setLayoutParams(marginParams);
+                    }
+                }
+            }
+        } catch (Exception ex) {
+            Logger.printException(() -> "hideAccountItem failure", ex);
         }
     }
 
@@ -1334,6 +1356,56 @@ public final class LayoutComponentsFilter extends Filter {
             Utils.hideViewByLayoutParams(view);
             view.setVisibility(View.GONE);
         }
+    }
+
+    /**
+     * Injection point.
+     * <p>
+     * Some app targets show the chapter title next to the timestamp as its own view, instead
+     * of inside the entry point button hidden by {@link #hideChaptersTimelineButton(View)}.
+     */
+    public static void hideChapterTitle(View view) {
+        if (view == null || !Settings.HIDE_CHAPTERS_TIMELINE_BUTTON.get()) {
+            return;
+        }
+
+        try {
+            Utils.hideViewByLayoutParams(view);
+            view.setVisibility(View.GONE);
+
+            // The chip around the title is a separate parent view.
+            if (CONTAINER_ID != 0 && view.getParent() instanceof View parent && parent.getId() == CONTAINER_ID) {
+                Utils.hideViewByLayoutParams(parent);
+                parent.setVisibility(View.GONE);
+            }
+        } catch (Exception ex) {
+            Logger.printException(() -> "hideChapterTitle failure", ex);
+        }
+    }
+
+    /**
+     * Injection point.
+     * <p>
+     * Called with the measure spec of a row of an app bar menu. The 'Help &amp; feedback' row is
+     * measured at no height, so it takes no space in the menu.
+     */
+    public static int hideHelpFeedbackMenuRow(View row, int heightMeasureSpec) {
+        if (!Settings.HIDE_HELP_FEEDBACK_MENU.get()) {
+            return heightMeasureSpec;
+        }
+
+        try {
+            View title = row.findViewById(ResourceUtils.getIdentifier(ResourceType.ID, "title"));
+            int helpStringId = ResourceUtils.getIdentifier(ResourceType.STRING, "menu_help");
+            if (title instanceof TextView textView && helpStringId != 0
+                    && row.getContext().getString(helpStringId).contentEquals(textView.getText())) {
+                return View.MeasureSpec.makeMeasureSpec(0, View.MeasureSpec.EXACTLY);
+            }
+        } catch (Exception ex) {
+            Logger.printException(() -> "hideHelpFeedbackMenuRow failure", ex);
+        }
+
+        return heightMeasureSpec;
     }
 
     /**
@@ -1367,5 +1439,33 @@ public final class LayoutComponentsFilter extends Filter {
      */
     public static void hideSyncButton(View view) {
         Utils.hideViewBy0dpUnderCondition(Settings.HIDE_SYNC_BUTTON, view);
+    }
+
+    /**
+     * Touch and playback speed callbacks all run on the main thread.
+     */
+    private static boolean tapAndHoldActive;
+
+    /**
+     * Injection point.
+     */
+    public static void onTapAndHoldStart() {
+        tapAndHoldActive = true;
+    }
+
+    /**
+     * Injection point.
+     */
+    public static void onTapAndHoldEnd() {
+        tapAndHoldActive = false;
+    }
+
+    /**
+     * Injection point.
+     *
+     * @return If the player controls should not be shown by a vertical drag.
+     */
+    public static boolean hideTapAndHoldGradient() {
+        return tapAndHoldActive && Settings.HIDE_TAP_AND_HOLD_GRADIENT.get();
     }
 }

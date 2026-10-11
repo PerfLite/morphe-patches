@@ -23,6 +23,7 @@ import app.morphe.patcher.patch.bytecodePatch
 import app.morphe.patcher.patch.resourcePatch
 import app.morphe.patcher.util.proxy.mutableTypes.MutableMethod.Companion.toMutable
 import app.morphe.patches.shared.BuildInnerTubeProtoRequestUriFingerprint
+import app.morphe.patches.shared.BuildInnerTubeProtoRequestUriLegacyFingerprint
 import app.morphe.patches.shared.misc.fix.proto.fixProtoLibraryPatch
 import app.morphe.patches.shared.misc.fix.proto.parseByteArrayMethodRef
 import app.morphe.patches.shared.misc.request.buildRequestPatch
@@ -84,12 +85,14 @@ private val spoofVideoStreamsResourcePatch = resourcePatch {
 
 internal fun spoofVideoStreamsPatch(
     extensionClass: String,
-    mainActivityOnCreateFingerprint: Fingerprint,
+    mainActivityOnCreateFingerprints: List<Fingerprint>,
     fixMediaFetchHotConfigAlternative: BytecodePatchBuilder.() -> Boolean,
     fixParsePlaybackResponseFeatureFlag: BytecodePatchBuilder.() -> Boolean,
     fixMediaSessionFeatureFlag: BytecodePatchBuilder.() -> Boolean,
     fixReelItemWatchResponseFeatureFlag: BytecodePatchBuilder.() -> Boolean,
     restoreMissingCuepointMethod: BytecodePatchBuilder.() -> Boolean,
+    patchProtoRequest: BytecodePatchBuilder.() -> Boolean,
+    patchProtoRequestLegacy: BytecodePatchBuilder.() -> Boolean,
     block: BytecodePatchBuilder.() -> Unit,
     executeBlock: BytecodePatchContext.() -> Unit = {},
 ) = bytecodePatch(
@@ -105,12 +108,12 @@ internal fun spoofVideoStreamsPatch(
     )
 
     execute {
-        mainActivityOnCreateFingerprint.method.addInstructions(
-            0,
-            """
-                invoke-static { }, $extensionClass->setClientOrderToUse()V   
-            """
-        )
+        mainActivityOnCreateFingerprints.forEach { fingerprint ->
+            fingerprint.method.addInstruction(
+                0,
+                "invoke-static { }, $extensionClass->setClientOrderToUse()V"
+            )
+        }
 
         // region Enable extension helper method used by other patches
 
@@ -138,20 +141,29 @@ internal fun spoofVideoStreamsPatch(
         // endregion
 
         // region Block /get_watch requests to fall back to /player requests.
+        val uriFingerprints = mutableListOf<Fingerprint>()
+        if (patchProtoRequest()) {
+            uriFingerprints += BuildInnerTubeProtoRequestUriFingerprint
+        }
+        if (patchProtoRequestLegacy()) {
+            uriFingerprints += BuildInnerTubeProtoRequestUriLegacyFingerprint
+        }
 
-        BuildInnerTubeProtoRequestUriFingerprint.let {
-            it.method.apply {
-                val match = it.instructionMatches.last()
-                val index = match.index
-                val register = match.instruction.registersUsed[0]
+        uriFingerprints.forEach { fingerprint ->
+            fingerprint.let {
+                it.method.apply {
+                    val match = it.instructionMatches.last()
+                    val index = match.index
+                    val register = match.instruction.registersUsed[0]
 
-                addInstructionsAtControlFlowLabel(
-                    index,
-                    $$"""
-                        invoke-static { v$$register }, $$EXTENSION_CLASS->blockGetWatchRequest(Landroid/net/Uri$Builder;)Landroid/net/Uri$Builder;
-                        move-result-object v$$register
-                    """
-                )
+                    addInstructionsAtControlFlowLabel(
+                        index,
+                        $$"""
+                            invoke-static { v$$register }, $$EXTENSION_CLASS->blockGetWatchRequest(Landroid/net/Uri$Builder;)Landroid/net/Uri$Builder;
+                            move-result-object v$$register
+                        """
+                    )
+                }
             }
         }
 

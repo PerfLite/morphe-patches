@@ -62,7 +62,85 @@ public final class ChannelSearchRoutes {
                     "&fields=microformat.microformatDataRenderer.channelProfileMicroformatDetails.profilePage.description"
     ).compile();
 
+    /**
+     * The title of a video in the language of the request, if the uploader added a translation
+     * of the title. Titles that are not translated by the uploader are the original title.
+     */
+    public static final Route.CompiledRoute GET_LOCALIZED_VIDEO_TITLE = new Route(
+            Route.Method.POST,
+            "next" +
+                    "?prettyPrint=false" +
+                    "&fields=playerOverlays.playerOverlayRenderer.videoDetails.playerOverlayVideoDetailsRenderer.title"
+    ).compile();
+
+    private static final String SEARCH_RESULT_VIDEO_FIELD =
+            "contents.sectionListRenderer.contents.itemSectionRenderer.contents.videoWithContextRenderer";
+
+    /**
+     * The search results of a video id or of a title, which include the video with its title as shown
+     * in the lists in the language of the request, or in the language of the searched title.
+     * Titles that are not translated by the uploader can be auto-translated in the lists,
+     * but not in the title of {@link #GET_LOCALIZED_VIDEO_TITLE}.
+     */
+    public static final Route.CompiledRoute GET_LIST_VIDEO_TITLE = new Route(
+            Route.Method.POST,
+            "search" +
+                    "?prettyPrint=false" +
+                    "&fields=" + SEARCH_RESULT_VIDEO_FIELD + ".videoId" +
+                    "," + SEARCH_RESULT_VIDEO_FIELD + ".headline.runs"
+    ).compile();
+
     private ChannelSearchRoutes() {
+    }
+
+    /**
+     * The language of the request includes the country, as titles can be translated
+     * to a regional variant of the language, such as zh-CN and zh-TW.
+     * The country of the request is the default country, as the server rejects some countries.
+     */
+    public static byte[] createVideoBody(String videoId, Locale locale) {
+        try {
+            JSONObject body = new JSONObject();
+            body.put("context", createVideoContext(locale));
+            body.put("videoId", videoId);
+
+            return body.toString().getBytes(StandardCharsets.UTF_8);
+        } catch (JSONException ex) {
+            Logger.printException(() -> "createVideoBody failed", ex);
+        }
+        return new byte[0];
+    }
+
+    /**
+     * Same as {@link #createVideoBody(String, Locale)}, for the search of a video id or of a title.
+     */
+    public static byte[] createVideoSearchBody(String query, Locale locale) {
+        try {
+            JSONObject body = new JSONObject();
+            body.put("context", createVideoContext(locale));
+            body.put("query", query);
+
+            return body.toString().getBytes(StandardCharsets.UTF_8);
+        } catch (JSONException ex) {
+            Logger.printException(() -> "createVideoSearchBody failed", ex);
+        }
+        return new byte[0];
+    }
+
+    private static JSONObject createVideoContext(Locale locale) throws JSONException {
+        String language = orDefault(locale.getLanguage(), DEFAULT_LANGUAGE);
+        if (!locale.getCountry().isEmpty()) {
+            language += "-" + locale.getCountry();
+        }
+        JSONObject client = new JSONObject();
+        client.put("clientName", CLIENT_NAME);
+        client.put("clientVersion", CLIENT_VERSION);
+        client.put("hl", language);
+        client.put("gl", DEFAULT_COUNTRY);
+
+        JSONObject context = new JSONObject();
+        context.put("client", client);
+        return context;
     }
 
     public static byte[] createChannelBody(String channelId, Locale locale) {

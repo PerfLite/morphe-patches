@@ -55,8 +55,8 @@ import app.morphe.extension.youtube.shared.VideoState;
  * <p>Collaborators:
  * <ul>
  *   <li>{@link TranscriptFetcher} / {@link TranscriptTranslator} - caption pipeline</li>
- *   <li>{@link TtsPrefetcher} - background synthesis into {@link TtsCache}</li>
- *   <li>{@link TtsEngine} - Edge TTS WebSocket + MediaPlayer playback</li>
+ *   <li>{@link TTSPrefetcher} - background synthesis into {@link TTSCache}</li>
+ *   <li>{@link TTSEngine} - Edge TTS WebSocket + MediaPlayer playback</li>
  *   <li>{@link PlayerVolumePatch} - ducks the original audio while TTS speaks</li>
  * </ul>
  *
@@ -187,7 +187,7 @@ public class VoiceOverTranslationPatch {
     private static long currentPreloadId;
     private static String lastTestVoiceId = "";
 
-    private static final TtsEngine ttsEngine = TtsEngine.INSTANCE;
+    private static final TTSEngine ttsEngine = TTSEngine.INSTANCE;
 
     static {
         PlayerType.getOnChange().addObserver(playerType -> {
@@ -201,7 +201,7 @@ public class VoiceOverTranslationPatch {
                 if (playerType.isNoneOrHidden() || playerType == PlayerType.NONE || playerType == PlayerType.HIDDEN) {
                     currentVideoId = "";
                     segments = new ArrayList<>();
-                    TtsPrefetcher.clear();
+                    TTSPrefetcher.clear();
                 }
             }
             return kotlin.Unit.INSTANCE;
@@ -214,7 +214,7 @@ public class VoiceOverTranslationPatch {
                 YandexAudioEngine.INSTANCE.stop();
                 currentVideoId = "";
                 segments = new ArrayList<>();
-                TtsPrefetcher.clear();
+                TTSPrefetcher.clear();
             }
             return kotlin.Unit.INSTANCE;
         });
@@ -255,7 +255,7 @@ public class VoiceOverTranslationPatch {
                 Logger.printDebug(() -> "Stopping TTS prefetch and abandoning ducking: " + state);
                 // Do not stop TTS to allow any currently playing TTS to finish.
                 PlayerVolumePatch.clearDuckMultiplier();
-                TtsPrefetcher.clear();
+                TTSPrefetcher.clear();
             }
             return kotlin.Unit.INSTANCE;
         });
@@ -286,7 +286,7 @@ public class VoiceOverTranslationPatch {
             Logger.printDebug(() -> "Skipping translation in newVideoLoaded for Shorts/hidden player: " + videoId);
             return;
         }
-        TtsPrefetcher.updateVideo(videoId, segments);
+        TTSPrefetcher.updateVideo(videoId, segments);
         loadTranscript(videoId);
 
         // Open the Edge socket in parallel so the first synthesis doesn't pay handshake cost.
@@ -341,7 +341,7 @@ public class VoiceOverTranslationPatch {
             return;
         }
 
-        TtsPrefetcher.updateTime(timeMs);
+        TTSPrefetcher.updateTime(timeMs);
 
         final long prevVideoTimeMs = lastVideoTimeMs;
         lastVideoTimeMs = timeMs;
@@ -493,7 +493,7 @@ public class VoiceOverTranslationPatch {
             seg.playbackEndMs = seg.endMs;
             seg.durationMs = -1;
         }
-        TtsPrefetcher.triggerRescan();
+        TTSPrefetcher.triggerRescan();
     }
 
     /** Applies the current voice volume setting to the active playback. */
@@ -649,7 +649,7 @@ public class VoiceOverTranslationPatch {
                         // batch-0 snapshot (fetched) if onUpdate never ran (single batch or
                         // no translation needed).
                         if (segments.isEmpty()) segments = finalFetched;
-                        TtsPrefetcher.updateVideo(videoId, segments);
+                        TTSPrefetcher.updateVideo(videoId, segments);
                         Logger.printDebug(() -> "Loaded: " + finalFetched.size() + " segments for :" + videoId);
                         notifyStateChanged();
                     }
@@ -814,7 +814,7 @@ public class VoiceOverTranslationPatch {
             // Stop and clear the subtitle work before the stream starts: a late translation
             // callback would otherwise repopulate segments and speak over the voice-over.
             TranscriptTranslator.requestAbort();
-            TtsPrefetcher.clear();
+            TTSPrefetcher.clear();
             stopTts();
             segments = new ArrayList<>();
             lastSpokenIndex = -1;
@@ -986,7 +986,7 @@ public class VoiceOverTranslationPatch {
         PlayerVolumePatch.setDuckMultiplier(Settings.VOT_ORIGINAL_AUDIO_VOLUME.get() / 100.0f);
         // Multiply by playback speed so TTS keeps pace with non-1.0x video.
         final float playbackRate = rate * VideoInformation.getPlaybackSpeed();
-        byte[] cached = TtsCache.get(currentVideoId, index, voice, lang, seg.text);
+        byte[] cached = TTSCache.get(currentVideoId, index, voice, lang, seg.text);
         if (cached != null) {
             final long playbackId = ttsEngine.markBusy();
             ttsEngine.play(cached, volume, playbackRate, startTimeMs, playbackId,
@@ -1009,7 +1009,7 @@ public class VoiceOverTranslationPatch {
                 return;
             }
             if (data.length > 0) {
-                TtsCache.put(videoIdSnapshot, index, voice, lang, seg.text, data);
+                TTSCache.put(videoIdSnapshot, index, voice, lang, seg.text, data);
             }
             final byte[] finalData = data;
             Utils.runOnMainThread(() -> {
@@ -1067,10 +1067,10 @@ public class VoiceOverTranslationPatch {
     private static long getSpeechDurationMs(TranscriptSegment seg, int index, String voice, String lang) {
         long duration = seg.durationMs;
         if (duration <= 0) {
-            duration = TtsCache.getDuration(currentVideoId, index, voice, lang, seg.text);
+            duration = TTSCache.getDuration(currentVideoId, index, voice, lang, seg.text);
             if (duration > 0) seg.durationMs = duration;
         }
-        return duration > 0 ? duration : (long) seg.text.length() * TtsEngine.ESTIMATED_MS_PER_CHAR;
+        return duration > 0 ? duration : (long) seg.text.length() * TTSEngine.ESTIMATED_MS_PER_CHAR;
     }
 
     /**
@@ -1078,7 +1078,7 @@ public class VoiceOverTranslationPatch {
      * {@link #calculateSpeechRate(long, long)}. Used when exact duration is not yet known.
      */
     private static float calculateSpeechRate(String text, long availableMs) {
-        return calculateSpeechRate((long) text.length() * TtsEngine.ESTIMATED_MS_PER_CHAR, availableMs);
+        return calculateSpeechRate((long) text.length() * TTSEngine.ESTIMATED_MS_PER_CHAR, availableMs);
     }
 
     /**
@@ -1154,7 +1154,7 @@ public class VoiceOverTranslationPatch {
         }
 
         final String lang = resolveTargetLang();
-        byte[] cached = TtsCache.get(TEST_VIDEO_ID, TEST_SEGMENT_INDEX, voiceId, lang, getTestString());
+        byte[] cached = TTSCache.get(TEST_VIDEO_ID, TEST_SEGMENT_INDEX, voiceId, lang, getTestString());
         if (cached != null) {
             PlayerVolumePatch.setDuckMultiplier(Settings.VOT_ORIGINAL_AUDIO_VOLUME.get() / 100.0f);
             final long id = ttsEngine.markBusy();
@@ -1190,13 +1190,13 @@ public class VoiceOverTranslationPatch {
                     return;
                 }
 
-                if (TtsCache.get(TEST_VIDEO_ID, TEST_SEGMENT_INDEX, voice.id, lang, testString) != null) {
+                if (TTSCache.get(TEST_VIDEO_ID, TEST_SEGMENT_INDEX, voice.id, lang, testString) != null) {
                     continue;
                 }
 
-                byte[] diskData = TtsCache.getTestSampleFromDisk(voice.id, lang);
+                byte[] diskData = TTSCache.getTestSampleFromDisk(voice.id, lang);
                 if (diskData != null) {
-                    TtsCache.put(TEST_VIDEO_ID, TEST_SEGMENT_INDEX, voice.id, lang, testString, diskData);
+                    TTSCache.put(TEST_VIDEO_ID, TEST_SEGMENT_INDEX, voice.id, lang, testString, diskData);
                     continue;
                 }
 
@@ -1204,8 +1204,8 @@ public class VoiceOverTranslationPatch {
                     Logger.printDebug(() -> "Prefetching test phrase for: " + voice.id);
                     byte[] data = ttsEngine.prefetch(testString, voice.id, lang);
                     if (data.length > 0) {
-                        TtsCache.put(TEST_VIDEO_ID, TEST_SEGMENT_INDEX, voice.id, lang, testString, data);
-                        TtsCache.putTestSampleToDisk(voice.id, lang, data);
+                        TTSCache.put(TEST_VIDEO_ID, TEST_SEGMENT_INDEX, voice.id, lang, testString, data);
+                        TTSCache.putTestSampleToDisk(voice.id, lang, data);
                     }
                     Thread.sleep(TEST_PREFETCH_WAIT);
 

@@ -44,13 +44,14 @@ public class SpoofVideoStreamsPatch {
 
         List<ClientType> availableClients = List.of(
                 ClientType.TV_SIMPLY,
-                ClientType.VISIONOS_1_02,
                 ClientType.ANDROID_CREATOR
                 // If not signed in to Android VR, there may be playback issues.
                 // Only use it if the user has selected it.
                 // ClientType.ANDROID_VR_DASH
         );
 
+        app.morphe.extension.shared.spoof.SpoofVideoStreamsPatch.setForceAVC(
+                Settings.FORCE_AVC_CODEC.get());
         app.morphe.extension.shared.spoof.SpoofVideoStreamsPatch.setClientsToUse(
                 availableClients, client);
     }

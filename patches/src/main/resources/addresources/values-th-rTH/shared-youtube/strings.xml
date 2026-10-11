@@ -80,7 +80,7 @@ Second \"item\" text"</string>
 
 หากต้องการเปลี่ยนไอคอนทุกที่ ให้แพตช์อีกครั้งและเปลี่ยนตัวเลือกแพตช์ “ไอคอนแอป”"</string>
   <string name="morphe_custom_branding_notification_icon_title">ไอคอนการแจ้งเตือน</string>
-  <string name="morphe_custom_branding_notification_icon_entry_1">จับคู่ไอคอนแอป</string>
+  <string name="morphe_custom_branding_notification_icon_entry_1">ตรงกับไอคอนแอป</string>
   <string name="morphe_custom_branding_notification_icon_entry_3">Morphe play</string>
   <!-- misc.dns.checkWatchHistoryDomainNameResolutionPatch -->
   <string name="morphe_check_watch_history_domain_name_dialog_title">ประกาศ Morphe</string>
@@ -108,10 +108,9 @@ Second \"item\" text"</string>
   <string name="morphe_spoof_video_streams_sign_in_android_vr_dialog_not_signed_in_message">"กดต่อไปเพื่อลงชื่อเข้าใช้ใน Android VR เพื่อแก้ปัญหาการเล่นกลับบางครั้ง
 
 กดดำเนินการต่อเพื่อลงชื่อเข้าใช้"</string>
-  <string name="morphe_spoof_video_streams_sign_in_android_vr_dialog_continue">ดำเนินการต่อ</string>
   <string name="morphe_spoof_video_streams_sign_in_android_vr_dialog_reset">ออกจากระบบ</string>
   <string name="morphe_spoof_video_streams_sign_in_android_vr_activation_code_dialog_title">คำแนะนำ</string>
-  <!-- "Open website" must use the same translation as morphe_spoof_video_streams_sign_in_android_vr_activation_code_dialog_open_website -->
+  <!-- "Open website" must use the same translation as gms_core_dialog_open_website_text -->
   <string name="morphe_spoof_video_streams_sign_in_android_vr_activation_code_dialog_message">"รหัสเข้าสู่ระบบ: %s
 
 1. กด 'เปิดเว็บไซต์' ด้านล่างเพื่อเปิดเข้าสู่เว็บไซต์ 'ที่เชื่อมต่ออุปกรณ์'
@@ -119,7 +118,6 @@ Second \"item\" text"</string>
 3. หากต้องเข้าสู่ระบบ Google ให้ดำเนินการทันที ถ้ามีหลายบัญชีให้เลือกบัญชีนี้ของ YouTube
 4. กด 'Metadata API'
 5. กลับมาที่แอปนี้หลังจากเห็นข้อความ 'อุปกรณ์ได้เชื่อมต่อแล้ว'"</string>
-  <string name="morphe_spoof_video_streams_sign_in_android_vr_activation_code_dialog_open_website">เปิดเว็บไซต์</string>
   <string name="morphe_spoof_video_streams_sign_in_android_vr_toast_get_activation_code_failed">ไม่สามารถออกรหัสเปิดใช้งานได้</string>
   <string name="morphe_spoof_video_streams_sign_in_android_vr_toast_get_authorization_code_failed">ไม่สามารถออกโทเค็นการตรวจสอบสิทธิ์ได้</string>
   <string name="morphe_spoof_video_streams_sign_in_android_vr_success_dialog_title">เข้าสู่ระบบสำเร็จ</string>
@@ -150,6 +148,11 @@ Second \"item\" text"</string>
   <!-- misc.audio.tracks.forceOriginalAudioPatch -->
   <string name="morphe_force_original_audio_title">บังคับใช้ภาษาเสียงต้นฉบับ</string>
   <string name="morphe_force_original_audio_summary">เล่นแทร็กเสียงต้นฉบับของวิดีโอเสมอแทนที่จะเป็นฉบับพากย์</string>
+  <!-- misc.audio.silence.skipSilencePatch -->
+  <string name="morphe_skip_silence_title">ข้ามความเงียบ</string>
+  <string name="morphe_skip_silence_summary">ข้ามช่วงความเงียบในเสียงวิดีโอโดยอัตโนมัติ</string>
+  <string name="morphe_skip_silence_minimum_pause_title">ระยะเวลาหยุดขั้นต่ำ</string>
+  <string name="morphe_skip_silence_minimum_pause_summary">เฉพาะช่วงหยุดที่ยาวอย่างน้อยเท่านี้เท่านั้นที่จะถูกย่อให้สั้นลง จะมีผลเมื่อเริ่มวิดีโอถัดไป</string>
   <!-- misc.proxy.networkProxyPatch -->
   <string name="morphe_proxy_screen_title">พร็อกซีเครือข่าย</string>
   <string name="morphe_proxy_screen_summary">กำหนดเส้นทางคำขอเครือข่ายผ่านพร็อกซี</string>
@@ -193,7 +196,6 @@ Second \"item\" text"</string>
   <string name="morphe_custom_filter_screen_title">ตัวกรองแบบกำหนดเอง</string>
   <string name="morphe_custom_filter_screen_summary">กำหนดค่าตัวกรองแบบกำหนดเองเพื่อซ่อนส่วนประกอบใดๆ</string>
   <string name="morphe_custom_filter_title">เปิดใช้งานตัวกรองแบบกำหนดเอง</string>
-  <string name="morphe_custom_filter_strings_title">ตัวกรองแบบกำหนดเอง</string>
   <!-- 'Component path builder strings' is the technical name for identifying the Litho UI layout items to hide. This is an advanced feature and most users will never use this. -->
   <string name="morphe_custom_filter_strings_summary">รายการสตริงตัวสร้างเส้นทางส่วนประกอบที่จะกรอง คั่นด้วยบรรทัดใหม่</string>
   <string name="morphe_custom_filter_toast_invalid_syntax">ตัวกรองแบบกำหนดเองไม่ถูกต้อง: %s</string>
@@ -256,9 +258,9 @@ Second \"item\" text"</string>
   <string name="morphe_ryd_estimated_like_summary">แสดงจำนวนการถูกใจโดยประมาณในวิดีโอที่ผู้สร้างปิดการนับจำนวนถูกใจ</string>
   <string name="morphe_ryd_toast_on_connection_error_title">แสดงการแจ้งเตือนข้อผิดพลาดในการเชื่อมต่อ</string>
   <string name="morphe_ryd_toast_on_connection_error_summary">แสดงการแจ้งเตือนเมื่อเซิร์ฟเวอร์ Return YouTube Dislike ไม่สามารถใช้งานได้</string>
-  <string name="morphe_ryd_attribution_summary">"ข้อมูลนี้จัดทำโดย Return YouTube Dislike API
+  <string name="morphe_ryd_attribution_summary">"Return YouTube Dislike คืนค่าการไม่ชอบที่ YouTube ซ่อนไว้ในปี 2021 จำนวนเหล่านี้มาจากข้อมูลที่เก็บถาวรก่อนการนำออก และประมาณการสำหรับวิดีโอใหม่จากการโหวตของผู้ใช้ ดังนั้นจึงเป็นค่าโดยประมาณและอัปเดตทุกสองสามวัน
 
-แตะที่นี่เพื่อเปิด ReturnYouTubeDislike.com"</string>
+ID ของวิดีโอที่คุณรับชมจะถูกส่งไปยัง API ของ Return YouTube Dislike และความชอบและไม่ชอบของคุณจะถูกส่งโดยไม่เปิดเผยตัวตนเพื่อปรับปรุงการประมาณการ"</string>
   <!-- Statistic strings are shown in the settings only when Morphe debug mode is enabled. Typical users will never see these. -->
   <string name="morphe_ryd_statistics_category_title">สถิติ API ของ Return YouTube Dislike ของอุปกรณ์นี้</string>
   <string name="morphe_ryd_statistics_getFetchCallResponseTimeAverage_title">เวลาตอบสนอง API, ค่าเฉลี่ย</string>
