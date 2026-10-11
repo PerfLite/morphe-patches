@@ -35,21 +35,25 @@ public class YandexTranslationService {
     private static final int MAX_NETWORK_RETRIES = 2;
 
     private static String cachedSecretKey = null;
-    private static String cachedUuid = null;
+    // Yandex keys its in-flight translation cache to the session uuid, so the uuid must survive
+    // secret key renewals. Resetting it restarts voice-over generation from scratch server side.
+    private static String sessionUuid = null;
     private static long sessionExpiryTimeMs = 0;
 
     private static synchronized String[] getOrRenewSession() {
         long now = System.currentTimeMillis();
-        if (cachedSecretKey != null && cachedUuid != null && now < sessionExpiryTimeMs) {
-            return new String[]{cachedUuid, cachedSecretKey};
+        if (cachedSecretKey != null && now < sessionExpiryTimeMs) {
+            return new String[]{sessionUuid, cachedSecretKey};
+        }
+        if (sessionUuid == null) {
+            sessionUuid = UUID.randomUUID().toString().replace("-", "").toLowerCase();
         }
 
         for (int attempt = 0; attempt <= MAX_NETWORK_RETRIES; attempt++) {
             if (attempt > 0) sleep(1000L * attempt);
             try {
-                String rawUuid = UUID.randomUUID().toString().replace("-", "").toLowerCase();
                 YandexSessionRequest sessionReq = YandexSessionRequest.newBuilder()
-                        .setUuid(rawUuid)
+                        .setUuid(sessionUuid)
                         .setModule("video-translation")
                         .build();
 
@@ -82,12 +86,11 @@ public class YandexTranslationService {
                 byte[] respBytes = readAllBytes(conn.getInputStream());
                 YandexSessionResponse sessionResp = YandexSessionResponse.parseFrom(respBytes);
 
-                cachedUuid = rawUuid;
                 cachedSecretKey = sessionResp.getSecretKey();
                 int expires = sessionResp.getExpires();
                 sessionExpiryTimeMs = now + ((long) (expires > 0 ? expires : 3600) * 1000) - 60000;
 
-                return new String[]{cachedUuid, cachedSecretKey};
+                return new String[]{sessionUuid, cachedSecretKey};
             } catch (Exception e) {
                 Logger.printException(() -> "Yandex getOrRenewSession error", e);
             }
@@ -95,10 +98,13 @@ public class YandexTranslationService {
         return null;
     }
 
-    /** Invalidates the cached session so the next translate() call creates a fresh one. */
+    /**
+     * Invalidates the cached secret key so the next translate() call creates a fresh one.
+     * The session uuid is deliberately kept: it is what Yandex keys the generated voice-over
+     * cache to, and dropping it would restart generation for videos already in progress.
+     */
     public static synchronized void resetSession() {
         cachedSecretKey = null;
-        cachedUuid = null;
         sessionExpiryTimeMs = 0;
     }
 

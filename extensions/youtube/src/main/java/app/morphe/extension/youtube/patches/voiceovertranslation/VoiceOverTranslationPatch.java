@@ -131,6 +131,10 @@ public class VoiceOverTranslationPatch {
 
     public static final String TTS_ENGINE_SYSTEM = "system";
     private static final String YANDEX_SERVICE = "yandex";
+    // Yandex gives an estimate for how long voice-over generation takes; after that poll at a
+    // fixed interval, bounded to roughly 7 minutes of requests.
+    private static final int YANDEX_MAX_POLL_ATTEMPTS = 60;
+    private static final long YANDEX_POLL_INTERVAL_MS = 7_000;
     private static final String VOT_ID_PREFIX = "vot_";
     private static final String VOT_TEST_ID_PREFIX = "vot_test_";
     private static final String TEST_VIDEO_ID = "test";
@@ -169,6 +173,9 @@ public class VoiceOverTranslationPatch {
     private static boolean sessionEnabled = Settings.VOT_SESSION_ENABLED.get();
     private static boolean wasExplicitSeek;
     private static volatile boolean httpErrorDialogShownThisVideo;
+    // Bumped whenever a Yandex poll starts or the session is turned off, so a detached
+    // poller thread can notice it is stale and stop making requests.
+    private static volatile int yandexPollGeneration;
 
     private static final Set<Runnable> stateChangeCallbacks = new CopyOnWriteArraySet<>();
 
@@ -326,7 +333,10 @@ public class VoiceOverTranslationPatch {
             return; // paused, ended, or loading
         }
 
-        if (YANDEX_SERVICE.equals(Settings.VOT_TRANSLATION_SERVICE.get())) {
+        // Only while the Yandex stream actually owns the player. Otherwise fall through to the
+        // subtitle TTS path, which is what plays while Yandex generates the voice-over.
+        if (YANDEX_SERVICE.equals(Settings.VOT_TRANSLATION_SERVICE.get())
+                && YandexAudioEngine.INSTANCE.hasAudioSession()) {
             YandexAudioEngine.INSTANCE.play(timeMs);
             return;
         }
@@ -458,6 +468,7 @@ public class VoiceOverTranslationPatch {
         if (!sessionEnabled) return;
         sessionEnabled = false;
         Settings.VOT_SESSION_ENABLED.save(false);
+        yandexPollGeneration++;
         stopTts();
         YandexAudioEngine.INSTANCE.stop();
         lastSpokenIndex = -1;
@@ -555,16 +566,19 @@ public class VoiceOverTranslationPatch {
                 // Later translation batches arrive asynchronously; swap the list in only
                 // while the same video is still playing. Timings and size are identical
                 // across updates, so lastSpokenIndex stays valid.
+                // Once the Yandex stream takes over it owns the player, so subtitle work stops.
                 final BooleanSupplier fetchCancelled = () ->
                         !videoId.equals(currentVideoId) || !sessionEnabled
                                 || ShortsPlayerState.isOpen() || PlayerType.getCurrent().isNoneOrHidden()
-                                || VideoState.getCurrent() == VideoState.ENDED;
+                                || VideoState.getCurrent() == VideoState.ENDED
+                                || YandexAudioEngine.INSTANCE.hasAudioSession();
 
                 List<TranscriptSegment> fetched = TranscriptFetcher.fetch(
                         videoId,
                         updated -> {
                             Utils.verifyOnMainThread();
-                            if (videoId.equals(currentVideoId) && loadLang.equals(resolveTargetLang())) {
+                            if (videoId.equals(currentVideoId) && loadLang.equals(resolveTargetLang())
+                                    && !YandexAudioEngine.INSTANCE.hasAudioSession()) {
                                 // If the segment we last started speaking had its text replaced
                                 // by a freshly-arrived translation, stop and let videoTimeChanged
                                 // re-speak it with the translated text on the next tick.
@@ -593,7 +607,8 @@ public class VoiceOverTranslationPatch {
                                     videoId,
                                     updated -> {
                                         Utils.verifyOnMainThread();
-                                        if (videoId.equals(currentVideoId) && loadLang.equals(resolveTargetLang())) {
+                                        if (videoId.equals(currentVideoId) && loadLang.equals(resolveTargetLang())
+                                                && !YandexAudioEngine.INSTANCE.hasAudioSession()) {
                                             if (lastSpokenIndex >= 0
                                                     && lastSpokenIndex < segments.size()
                                                     && lastSpokenIndex < updated.size() && !segments.get(lastSpokenIndex).text
@@ -626,7 +641,8 @@ public class VoiceOverTranslationPatch {
 
                 final List<TranscriptSegment> finalFetched = fetched;
                 Utils.runOnMainThread(() -> {
-                    if (videoId.equals(currentVideoId) && loadLang.equals(resolveTargetLang())) {
+                    if (videoId.equals(currentVideoId) && loadLang.equals(resolveTargetLang())
+                            && !YandexAudioEngine.INSTANCE.hasAudioSession()) {
                         // With sequential batch execution, cancelCheck.get() ensures every
                         // onUpdate fires before translate() returns, so segments is already
                         // fully translated by the time we arrive here. Only fall back to the
@@ -657,50 +673,35 @@ public class VoiceOverTranslationPatch {
     }
 
     /**
-     * Requests the ready-made Yandex voice-over for the current video, polls while the
-     * backend is generating it, and hands the resulting stream URL to
-     * {@link YandexAudioEngine}. Runs on the background thread started by
+     * Requests the ready-made Yandex voice-over for the current video and hands the resulting
+     * stream URL to {@link YandexAudioEngine}. Runs on the background thread started by
      * {@link #loadTranscript(String)}.
      *
      * <p>Matches the {@code @vot.js/core} YandexProvider semantics:
-     * FINISHED/PART_CONTENT with a URL means success, WAITING/LONG_WAITING mean keep
+     * FINISHED/PART_CONTENT with a URL means success, WAITING/LONG_WAITING means keep
      * polling, AUDIO_REQUESTED means the backend expects the player-side audio and the
      * fail-audio-js fallback must be sent, FAILED means give up.
      *
-     * @return true when the Yandex engine took over playback and the TTS fallback must
-     * not run.
+     * <p>While the backend is still generating the stream, polling moves to its own thread and
+     * the subtitle TTS fallback plays in the meantime, so generation time is not dead air.
+     *
+     * @return true when the Yandex engine took over playback and the TTS fallback must not run.
      */
     private static boolean loadYandexAudio(String videoId, String loadLang) {
-        String videoUrl = "https://youtu.be/" + videoId;
-        double duration = VideoInformation.getVideoLength() / 1000.0;
-        boolean preferLively = Settings.VOT_YANDEX_LIVELY_VOICE.get();
-        boolean livelyDisabled = false;
-        VideoTranslationResponse response = null;
-        boolean audioRequestedHandled = false;
-
+        final String videoUrl = "https://youtu.be/" + videoId;
+        final double duration = VideoInformation.getVideoLength() / 1000.0;
         final String originalLang = "auto";
+        boolean livelyDisabled = false;
 
-        VideoTranslationResponse first = YandexTranslationService.translate(
-                videoUrl, originalLang, loadLang, duration, preferLively);
-
-        // Check if Yandex indicates the video is already in the target language
-        if (first != null && !first.getAllowToTranslateVideo() && first.getResponseMessage() != null
-                && (first.getResponseMessage().toLowerCase().contains("совпадает")
-                    || first.getResponseMessage().toLowerCase().contains("на том же языке"))) {
-            Logger.printDebug(() -> "Video is already in target language according to Yandex, skipping translation");
-            Utils.runOnMainThread(() -> {
-                segments = new ArrayList<>();
-                notifyStateChanged();
-            });
-            return true;
-        }
+        VideoTranslationResponse response = YandexTranslationService.translate(
+                videoUrl, originalLang, loadLang, duration, Settings.VOT_YANDEX_LIVELY_VOICE.get());
 
         // Lively voice unavailable for this video pair: retry once without it
-        if (preferLively && first != null && !isWaiting(first) && !isFinishedLike(first)) {
-            String firstMsg = first.getResponseMessage();
+        if (Settings.VOT_YANDEX_LIVELY_VOICE.get() && response != null && !isWaiting(response) && !isFinishedLike(response)) {
+            String firstMsg = response.getResponseMessage();
             boolean messageMentionsRegularVoice = firstMsg != null
                     && firstMsg.toLowerCase().contains("обычная озвучка");
-            boolean refused = first.getResponseStatusValue() == 0 /* FAILED */;
+            boolean refused = response.getResponseStatusValue() == 0 /* FAILED */;
             if (messageMentionsRegularVoice || refused) {
                 Logger.printDebug(() -> "Lively voice not available for this video, falling back to standard voice");
                 response = YandexTranslationService.translate(videoUrl, originalLang, loadLang, duration, false);
@@ -710,82 +711,134 @@ public class VoiceOverTranslationPatch {
                 livelyDisabled = true;
             }
         }
-        if (response == null) response = first;
 
-        int retries = 0;
-        while (retries < 60) {
-            if (!yandexStillRelevant(videoId)) {
-                Logger.printDebug(() -> "Aborting Yandex translation polling: video changed or session inactive");
-                break;
-            }
+        response = handleAudioRequested(response, videoUrl, originalLang, loadLang, duration);
 
-            final int statusVal = response != null ? response.getResponseStatusValue() : -1;
+        if (isFinishedLike(response)) {
+            return attachYandexAudio(videoId, loadLang, response.getTranslationUrl());
+        }
 
-            if (response != null && response.getTranslationUrl() != null
-                    && !response.getTranslationUrl().isEmpty()) {
-                // FINISHED or PART_CONTENT with an attached audio URL.
-                final String audioUrl = response.getTranslationUrl();
-                Utils.runOnMainThread(() -> {
-                    if (videoId.equals(currentVideoId) && loadLang.equals(resolveTargetLang())
-                            && sessionEnabled && Settings.VOT_ENABLED.get()
-                            && !PlayerType.getCurrent().isNoneOrHidden() && !ShortsPlayerState.isOpen()) {
-                        YandexAudioEngine.INSTANCE.prepare(audioUrl);
-                        segments = new ArrayList<>(); // clear segments so TTS doesn't play
-                        notifyStateChanged();
-                    }
-                });
-                return true;
-            } else if (statusVal == 2 /* WAITING */ || statusVal == 3 /* LONG_WAITING */) {
-                Logger.printDebug(() -> "Yandex translation is work in progress. Waiting...");
-                if (retries == 0) {
-                    int remaining = response.getRemainingTime();
-                    String msg = response.getResponseMessage();
-                    if (msg != null && !msg.trim().isEmpty()) {
-                        Utils.showToastShort("⏳ " + msg);
-                    } else if (remaining > 0) {
-                        if (remaining >= 60) {
-                            Utils.showToastShort("⏳ Яндекс генерирует озвучку (~" + (remaining / 60) + " мин)");
-                        } else {
-                            Utils.showToastShort("⏳ Яндекс генерирует озвучку (~" + remaining + " сек)");
-                        }
-                    } else {
-                        Utils.showToastShort("⏳ Яндекс генерирует озвучку...");
-                    }
-                }
+        if (isWaiting(response)) {
+            startYandexPolling(videoId, loadLang, duration, livelyDisabled, response);
+            return false;
+        }
+
+        // Includes "video is already in the target language": the subtitle path detects that
+        // itself and leaves the original audio alone, so fall through instead of going quiet.
+        Logger.printDebug(() -> "Yandex has no voice-over for " + videoId + ", falling back to subtitles TTS");
+        return false;
+    }
+
+    /**
+     * Sends the fail-audio-js fallback for AUDIO_REQUESTED and re-requests the translation,
+     * mirroring {@code @vot.js/core}.
+     *
+     * @return the follow-up response, or null if the fallback could not be delivered.
+     */
+    private static VideoTranslationResponse handleAudioRequested(VideoTranslationResponse response, String videoUrl,
+                                                                 String originalLang, String loadLang, double duration) {
+        if (response == null || response.getResponseStatusValue() != 6 /* AUDIO_REQUESTED */) {
+            return response;
+        }
+        Logger.printDebug(() -> "Yandex requested the audio (AUDIO_REQUESTED), sending fail-audio-js");
+        if (!YandexTranslationService.reportAudioUnavailable(videoUrl, response.getTranslationId())) {
+            return null;
+        }
+        return YandexTranslationService.translate(videoUrl, originalLang, loadLang, duration, false);
+    }
+
+    /**
+     * Keeps asking Yandex until the voice-over stream is ready, on its own background thread so
+     * the subtitle TTS fallback can play while the backend generates the audio.
+     */
+    private static void startYandexPolling(String videoId, String loadLang, double duration,
+                                           boolean livelyDisabled, VideoTranslationResponse first) {
+        final int generation = ++yandexPollGeneration;
+        final String videoUrl = "https://youtu.be/" + videoId;
+        final String originalLang = "auto";
+
+        Utils.runOnBackgroundThread(() -> {
+            VideoTranslationResponse response = first;
+            int retries = 0;
+            while (retries < YANDEX_MAX_POLL_ATTEMPTS && generation == yandexPollGeneration
+                    && loadLang.equals(resolveTargetLang()) && yandexStillRelevant(videoId)) {
+                if (retries == 0) showYandexWaitingToast(response);
                 long waitMs = retries == 0 && response.getRemainingTime() > 0
                         ? Math.min(response.getRemainingTime() * 1000L, 30_000L)
-                        : 7000L;
+                        : YANDEX_POLL_INTERVAL_MS;
                 try {
                     Thread.sleep(waitMs);
                 } catch (InterruptedException e) {
-                    break;
-                }
-                if (!yandexStillRelevant(videoId)) {
-                    Logger.printDebug(() -> "Aborting Yandex polling after sleep: video changed or session inactive");
-                    break;
+                    return;
                 }
                 retries++;
-                response = YandexTranslationService.translate(
-                        videoUrl, originalLang, resolveTargetLang(), duration, livelyDisabled ? false : Settings.VOT_YANDEX_LIVELY_VOICE.get());
-            } else if (statusVal == 6 /* AUDIO_REQUESTED */) {
-                if (!audioRequestedHandled) {
-                    audioRequestedHandled = true;
-                    Logger.printDebug(() -> "Yandex requested the audio (AUDIO_REQUESTED), sending fail-audio-js");
-                    if (YandexTranslationService.reportAudioUnavailable(videoUrl, response.getTranslationId())) {
-                        response = YandexTranslationService.translate(videoUrl, originalLang, loadLang, duration, false);
-                        retries++;
-                        continue;
-                    }
+                if (generation != yandexPollGeneration || !loadLang.equals(resolveTargetLang())
+                        || !yandexStillRelevant(videoId)) {
+                    Logger.printDebug(() -> "Aborting Yandex polling: video changed or session inactive");
+                    return;
                 }
-                Logger.printDebug(() -> "Yandex audio translation not ready (status=" + statusVal + "), falling back to subtitles TTS");
-                break;
-            } else {
-                Logger.printDebug(() -> "Yandex audio translation not ready (status=" + statusVal + "), falling back to subtitles TTS");
-                break;
+
+                response = YandexTranslationService.translate(videoUrl, originalLang, loadLang, duration,
+                        livelyDisabled ? false : Settings.VOT_YANDEX_LIVELY_VOICE.get());
+                response = handleAudioRequested(response, videoUrl, originalLang, loadLang, duration);
+
+                if (isFinishedLike(response)) {
+                    attachYandexAudio(videoId, loadLang, response.getTranslationUrl());
+                    return;
+                }
+                if (!isWaiting(response)) {
+                    final int statusVal = response != null ? response.getResponseStatusValue() : -1;
+                    Logger.printDebug(() -> "Yandex stopped generating voice-over (status=" + statusVal
+                            + "), keeping subtitles TTS");
+                    return;
+                }
             }
+            Logger.printDebug(() -> "Yandex polling gave up for: " + videoId);
+        });
+    }
+
+    /**
+     * Attaches the voice-over stream and takes the player away from the subtitle TTS fallback.
+     *
+     * @return true if this video and language pair is still the one the engine should be playing.
+     */
+    private static boolean attachYandexAudio(String videoId, String loadLang, String audioUrl) {
+        if (!yandexStillRelevant(videoId) || !loadLang.equals(resolveTargetLang())) {
+            return false;
         }
-        Logger.printDebug(() -> "Yandex audio not attached for: " + videoId);
-        return false;
+        Utils.runOnMainThread(() -> {
+            if (!sessionEnabled || !Settings.VOT_ENABLED.get()
+                    || !videoId.equals(currentVideoId) || !loadLang.equals(resolveTargetLang())) {
+                return;
+            }
+            // Stop and clear the subtitle work before the stream starts: a late translation
+            // callback would otherwise repopulate segments and speak over the voice-over.
+            TranscriptTranslator.requestAbort();
+            TtsPrefetcher.clear();
+            stopTts();
+            segments = new ArrayList<>();
+            lastSpokenIndex = -1;
+            YandexAudioEngine.INSTANCE.prepare(audioUrl);
+            notifyStateChanged();
+        });
+        return true;
+    }
+
+    /** Reports how long Yandex expects the voice-over generation to take. */
+    private static void showYandexWaitingToast(VideoTranslationResponse response) {
+        String msg = response.getResponseMessage();
+        if (msg != null && !msg.trim().isEmpty()) {
+            Utils.showToastShort("⏳ " + msg);
+            return;
+        }
+        int remaining = response.getRemainingTime();
+        if (remaining >= 60) {
+            Utils.showToastShort("⏳ Яндекс генерирует озвучку (~" + (remaining / 60) + " мин)");
+        } else if (remaining > 0) {
+            Utils.showToastShort("⏳ Яндекс генерирует озвучку (~" + remaining + " сек)");
+        } else {
+            Utils.showToastShort("⏳ Яндекс генерирует озвучку...");
+        }
     }
 
     private static boolean isFinishedLike(VideoTranslationResponse response) {
@@ -986,11 +1039,15 @@ public class VoiceOverTranslationPatch {
      * cannot change rate in-flight; the next utterance picks up the new value).
      */
     private static void propagatePlaybackSpeedIfChanged() {
-        if (lastAppliedPlaybackSpeed < 0) return;
+        // The subtitle TTS fallback can be speaking while Yandex generates the voice-over, so
+        // route by who actually owns the player rather than by the configured provider.
+        final boolean yandexOwnsPlayer = YANDEX_SERVICE.equals(Settings.VOT_TRANSLATION_SERVICE.get())
+                && YandexAudioEngine.INSTANCE.hasAudioSession();
+        if (lastAppliedPlaybackSpeed < 0 && !yandexOwnsPlayer) return;
         final float current = VideoInformation.getPlaybackSpeed();
         if (current == lastAppliedPlaybackSpeed) return;
         lastAppliedPlaybackSpeed = current;
-        if (YANDEX_SERVICE.equals(Settings.VOT_TRANSLATION_SERVICE.get())) {
+        if (yandexOwnsPlayer) {
             YandexAudioEngine.INSTANCE.setSpeed(current);
             return;
         }
