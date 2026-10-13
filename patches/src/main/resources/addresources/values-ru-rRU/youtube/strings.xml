@@ -448,6 +448,8 @@ Second \"item\" text"</string>
   <string name="morphe_vot_caption_language_title">Язык</string>
   <string name="morphe_vot_translation_service_title">Поставщик перевода</string>
   <string name="morphe_vot_yandex_lively_voice_title">Живой голос (Яндекс)</string>
+  <string name="morphe_vot_proxy_title">Прокси-сервер (VOT Worker)</string>
+  <string name="morphe_vot_proxy_host_title">Адрес worker прокси</string>
   <string name="morphe_vot_original_audio_volume_title">Громкость оригинального аудио</string>
   <string name="morphe_vot_original_audio_volume_summary">Громкость оригинального звука YouTube во время воспроизведения перевода</string>
   <string name="morphe_vot_translation_volume_title">Громкость перевода</string>

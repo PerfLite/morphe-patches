@@ -19,7 +19,9 @@ import static app.morphe.extension.youtube.patches.voiceovertranslation.VoiceOve
 import static app.morphe.extension.youtube.videoplayer.LegacyPlayerControlButton.fadeInDuration;
 import static app.morphe.extension.youtube.videoplayer.LegacyPlayerControlButton.getDialogBackgroundColor;
 
+import android.app.AlertDialog;
 import android.content.Context;
+import android.widget.EditText;
 import android.content.res.ColorStateList;
 import android.graphics.Color;
 import android.graphics.PorterDuff;
@@ -125,6 +127,45 @@ public final class VOTBottomSheet {
                     VoiceOverTranslationPatch.reloadTranscript();
                 });
 
+        // Proxy worker toggle & host — only meaningful for Yandex
+        LinearLayout proxyHostRow = makeValueRow(context, fg, str("morphe_vot_proxy_host_title"));
+        Runnable refreshProxyHost = () -> ((TextView) proxyHostRow.getTag())
+                .setText(Settings.VOT_PROXY_HOST.get());
+        refreshProxyHost.run();
+
+        proxyHostRow.setOnClickListener(v -> {
+            AlertDialog.Builder builder = new AlertDialog.Builder(context);
+            builder.setTitle(str("morphe_vot_proxy_host_title"));
+            final EditText input = new EditText(context);
+            input.setText(Settings.VOT_PROXY_HOST.get());
+            input.setSingleLine(true);
+            input.setTextColor(fg);
+            FrameLayout container = new FrameLayout(context);
+            container.setPadding(Dim.dp24, Dim.dp8, Dim.dp24, Dim.dp8);
+            container.addView(input);
+            builder.setView(container);
+            builder.setPositiveButton(android.R.string.ok, (d, which) -> {
+                String newHost = input.getText().toString().trim();
+                if (newHost.isEmpty()) newHost = "vot-worker.eu.cc";
+                Settings.VOT_PROXY_HOST.save(newHost);
+                refreshProxyHost.run();
+                YandexTranslationService.resetSession();
+                VoiceOverTranslationPatch.reloadTranscript();
+            });
+            builder.setNegativeButton(android.R.string.cancel, null);
+            builder.show();
+        });
+
+        LinearLayout proxyRow = makeSwitchRow(context, fg,
+                str("morphe_vot_proxy_title"),
+                Settings.VOT_PROXY_ENABLED.get(),
+                checked -> {
+                    Settings.VOT_PROXY_ENABLED.save(checked);
+                    proxyHostRow.setVisibility(checked ? View.VISIBLE : View.GONE);
+                    YandexTranslationService.resetSession();
+                    VoiceOverTranslationPatch.reloadTranscript();
+                });
+
         TextView title = makeTitle(context, str("morphe_vot_screen_title"), fg);
         ((LinearLayout.LayoutParams) title.getLayoutParams()).setMargins(Dim.dp16, Dim.dp8, Dim.dp16, Dim.dp16);
         root.addView(title);
@@ -139,6 +180,8 @@ public final class VOTBottomSheet {
                 langEntries, langValues, mainRef));
         content.addView(translationRow);
         content.addView(livelyVoiceRow);
+        content.addView(proxyRow);
+        content.addView(proxyHostRow);
         content.addView(engineRow);
         content.addView(makeDivider(context, fg));
         content.addView(makeSliderRow(context,
@@ -163,9 +206,11 @@ public final class VOTBottomSheet {
                 fg,
                 Settings.VOT_MAX_SPEECH_RATE::save));
 
-        // Show lively voice row only when Yandex is the selected provider
+        // Show Yandex-specific rows only when Yandex is the selected provider
         boolean isYandex = "yandex".equals(Settings.VOT_TRANSLATION_SERVICE.get());
         livelyVoiceRow.setVisibility(isYandex ? View.VISIBLE : View.GONE);
+        proxyRow.setVisibility(isYandex ? View.VISIBLE : View.GONE);
+        proxyHostRow.setVisibility(isYandex && Settings.VOT_PROXY_ENABLED.get() ? View.VISIBLE : View.GONE);
         engineRow.setVisibility(isYandex ? View.GONE : View.VISIBLE);
 
         root.addView(scroll);

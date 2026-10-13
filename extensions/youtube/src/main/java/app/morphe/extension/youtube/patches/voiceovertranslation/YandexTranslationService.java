@@ -13,8 +13,12 @@ import java.util.Random;
 import javax.crypto.Mac;
 import javax.crypto.spec.SecretKeySpec;
 
+import android.util.Base64;
+import org.json.JSONObject;
+
 import app.morphe.extension.shared.Logger;
 import app.morphe.extension.shared.Utils;
+import app.morphe.extension.youtube.settings.Settings;
 import app.morphe.extension.youtube.patches.voiceovertranslation.yandex.Vtrans.AudioBufferObject;
 import app.morphe.extension.youtube.patches.voiceovertranslation.yandex.Vtrans.VideoTranslationAudioRequest;
 import app.morphe.extension.youtube.patches.voiceovertranslation.yandex.Vtrans.VideoTranslationRequest;
@@ -42,6 +46,26 @@ public class YandexTranslationService {
         return System.currentTimeMillis() < rateLimitUntilMs;
     }
 
+    public static boolean isProxyEnabled() {
+        return Settings.VOT_PROXY_ENABLED.get();
+    }
+
+    private static String getBaseUrl() {
+        if (isProxyEnabled()) {
+            String host = Settings.VOT_PROXY_HOST.get().trim();
+            if (!host.isEmpty()) {
+                if (!host.startsWith("http://") && !host.startsWith("https://")) {
+                    host = "https://" + host;
+                }
+                while (host.endsWith("/")) {
+                    host = host.substring(0, host.length() - 1);
+                }
+                return host;
+            }
+        }
+        return YANDEX_BASE_URL;
+    }
+
     private static String generateUuid() {
         final char[] hex = "0123456789ABCDEF".toCharArray();
         Random rnd = new Random();
@@ -58,6 +82,56 @@ public class YandexTranslationService {
         conn.setRequestProperty("sec-ch-ua-mobile", "?0");
         conn.setRequestProperty("sec-ch-ua-platform", "\"Windows\"");
         conn.setRequestProperty("sec-ch-ua-full-version-list", "\"Not;A=Brand\";v=\"8.0.0.0\", \"Chromium\";v=\"150.0.7871.1796\", \"YaBrowser\";v=\"26.10.0.1796\", \"Yowser\";v=\"2.5\"");
+    }
+
+    private static void setupConnectionHeaders(HttpURLConnection conn, String contentType, String signature, String token, String sk) {
+        if (isProxyEnabled()) {
+            try {
+                JSONObject headers = new JSONObject();
+                headers.put("User-Agent", USER_AGENT);
+                headers.put("sec-ch-ua", "\"Not;A=Brand\";v=\"8\", \"Chromium\";v=\"150\", \"YaBrowser\";v=\"26.10\", \"Yowser\";v=\"2.5\"");
+                headers.put("sec-ch-ua-mobile", "?0");
+                headers.put("sec-ch-ua-platform", "\"Windows\"");
+                headers.put("sec-ch-ua-full-version-list", "\"Not;A=Brand\";v=\"8.0.0.0\", \"Chromium\";v=\"150.0.7871.1796\", \"YaBrowser\";v=\"26.10.0.1796\", \"Yowser\";v=\"2.5\"");
+                headers.put("Accept-Language", "en");
+                headers.put("Content-Type", contentType);
+                headers.put("Accept", contentType);
+                headers.put("Pragma", "no-cache");
+                headers.put("Cache-Control", "no-cache");
+                if (signature != null && !signature.isEmpty()) {
+                    headers.put("Vtrans-Signature", signature);
+                }
+                if (token != null && !token.isEmpty()) {
+                    headers.put("Sec-Vtrans-Token", token);
+                }
+                if (sk != null && !sk.isEmpty()) {
+                    headers.put("Sec-Vtrans-Sk", sk);
+                }
+                String b64 = Base64.encodeToString(headers.toString().getBytes(StandardCharsets.UTF_8), Base64.NO_WRAP);
+                conn.setRequestProperty("User-Agent", "vot.js/3.1.5");
+                conn.setRequestProperty("X-VOT-Headers", b64);
+                conn.setRequestProperty("Content-Type", contentType);
+                conn.setRequestProperty("Accept", contentType);
+            } catch (Exception e) {
+                Logger.printException(() -> "Failed to encode VOT worker headers", e);
+            }
+        } else {
+            applyClientHeaders(conn);
+            conn.setRequestProperty("Accept-Language", "en");
+            conn.setRequestProperty("Content-Type", contentType);
+            conn.setRequestProperty("Accept", contentType);
+            conn.setRequestProperty("Pragma", "no-cache");
+            conn.setRequestProperty("Cache-Control", "no-cache");
+            if (signature != null && !signature.isEmpty()) {
+                conn.setRequestProperty("Vtrans-Signature", signature);
+            }
+            if (token != null && !token.isEmpty()) {
+                conn.setRequestProperty("Sec-Vtrans-Token", token);
+            }
+            if (sk != null && !sk.isEmpty()) {
+                conn.setRequestProperty("Sec-Vtrans-Sk", sk);
+            }
+        }
     }
 
     private static synchronized String[] getOrRenewSession() {
@@ -81,17 +155,13 @@ public class YandexTranslationService {
                 byte[] body = sessionReq.toByteArray();
                 String signature = generateSignature(body);
 
-                URL url = new URL(YANDEX_BASE_URL + "/session/create");
+                URL url = new URL(getBaseUrl() + "/session/create");
                 HttpURLConnection conn = (HttpURLConnection) url.openConnection();
                 conn.setConnectTimeout(CONNECT_TIMEOUT_MS);
                 conn.setReadTimeout(READ_TIMEOUT_MS);
                 conn.setRequestMethod("POST");
                 conn.setDoOutput(true);
-                applyClientHeaders(conn);
-                conn.setRequestProperty("Accept-Language", "en");
-                conn.setRequestProperty("Content-Type", "application/x-protobuf");
-                conn.setRequestProperty("Accept", "application/x-protobuf");
-                conn.setRequestProperty("Vtrans-Signature", signature);
+                setupConnectionHeaders(conn, "application/x-protobuf", signature, null, null);
 
                 try (OutputStream os = conn.getOutputStream()) {
                     os.write(body);
@@ -103,7 +173,11 @@ public class YandexTranslationService {
                     rateLimitUntilMs = System.currentTimeMillis() + 60_000L;
                     resetSession();
                     Logger.printException(() -> "Yandex session creation rate limited (HTTP 429)");
-                    Utils.showToastShort("⚠️ Превышен лимит запросов к Яндекс (HTTP 429), подождите 1 минуту");
+                    if (!isProxyEnabled()) {
+                        Utils.showToastShort("⚠️ Лимит запросов Яндекс (429). Включите VOT Прокси в настройках.");
+                    } else {
+                        Utils.showToastShort("⚠️ Превышен лимит запросов к Яндекс (HTTP 429), подождите 1 минуту");
+                    }
                     return null;
                 }
                 if (code != 200) {
@@ -139,6 +213,7 @@ public class YandexTranslationService {
         cachedSecretKey = null;
         sessionUuid = null;
         sessionExpiryTimeMs = 0;
+        rateLimitUntilMs = 0;
     }
 
     private static void sleep(long ms) {
@@ -212,24 +287,13 @@ public class YandexTranslationService {
             for (int attempt = 0; attempt <= MAX_NETWORK_RETRIES; attempt++) {
                 if (attempt > 0) sleep(1000L * attempt);
                 try {
-                    URL url = new URL(YANDEX_BASE_URL + "/video-translation/translate");
+                    URL url = new URL(getBaseUrl() + "/video-translation/translate");
                     HttpURLConnection conn = (HttpURLConnection) url.openConnection();
                     conn.setConnectTimeout(CONNECT_TIMEOUT_MS);
                     conn.setReadTimeout(READ_TIMEOUT_MS);
                     conn.setRequestMethod("POST");
                     conn.setDoOutput(true);
-                    applyClientHeaders(conn);
-                    conn.setRequestProperty("Accept-Language", "en");
-                    conn.setRequestProperty("Accept", "application/x-protobuf");
-                    conn.setRequestProperty("Content-Type", "application/x-protobuf");
-                    conn.setRequestProperty("Pragma", "no-cache");
-                    conn.setRequestProperty("Cache-Control", "no-cache");
-                    conn.setRequestProperty("Sec-Fetch-Mode", "no-cors");
-
-                    // Add current Yandex authentication headers
-                    conn.setRequestProperty("Vtrans-Signature", bodySignature);
-                    conn.setRequestProperty("Sec-Vtrans-Token", fullToken);
-                    conn.setRequestProperty("Sec-Vtrans-Sk", secretKey);
+                    setupConnectionHeaders(conn, "application/x-protobuf", bodySignature, fullToken, secretKey);
 
                     // Write body
                     try (OutputStream os = conn.getOutputStream()) {
@@ -242,7 +306,11 @@ public class YandexTranslationService {
                         rateLimitUntilMs = System.currentTimeMillis() + 60_000L;
                         resetSession();
                         Logger.printException(() -> "Yandex API rate limited (HTTP 429)");
-                        Utils.showToastShort("⚠️ Превышен лимит запросов к Яндекс (HTTP 429), подождите 1 минуту");
+                        if (!isProxyEnabled()) {
+                            Utils.showToastShort("⚠️ Лимит запросов Яндекс (429). Включите VOT Прокси в настройках.");
+                        } else {
+                            Utils.showToastShort("⚠️ Превышен лимит запросов к Яндекс (HTTP 429), подождите 1 минуту");
+                        }
                         return null;
                     }
                     if (responseCode != 200) {
@@ -289,19 +357,13 @@ public class YandexTranslationService {
             {
                 byte[] body = ("{\"video_url\":\"" + videoUrl + "\"}").getBytes(StandardCharsets.UTF_8);
 
-                URL url = new URL(YANDEX_BASE_URL + "/video-translation/fail-audio-js");
+                URL url = new URL(getBaseUrl() + "/video-translation/fail-audio-js");
                 HttpURLConnection conn = (HttpURLConnection) url.openConnection();
                 conn.setConnectTimeout(CONNECT_TIMEOUT_MS);
                 conn.setReadTimeout(READ_TIMEOUT_MS);
                 conn.setRequestMethod("PUT");
                 conn.setDoOutput(true);
-                applyClientHeaders(conn);
-                conn.setRequestProperty("Accept-Language", "en");
-                conn.setRequestProperty("Content-Type", "application/json");
-                conn.setRequestProperty("Accept", "application/json");
-                conn.setRequestProperty("Pragma", "no-cache");
-                conn.setRequestProperty("Cache-Control", "no-cache");
-                conn.setRequestProperty("Sec-Vtrans-Sk", secretKey);
+                setupConnectionHeaders(conn, "application/json", null, null, secretKey);
 
                 try (OutputStream os = conn.getOutputStream()) {
                     os.write(body);
@@ -312,7 +374,11 @@ public class YandexTranslationService {
                 if (code == 429) {
                     rateLimitUntilMs = System.currentTimeMillis() + 60_000L;
                     resetSession();
-                    Utils.showToastShort("⚠️ Превышен лимит запросов к Яндекс (HTTP 429), подождите 1 минуту");
+                    if (!isProxyEnabled()) {
+                        Utils.showToastShort("⚠️ Лимит запросов Яндекс (429). Включите VOT Прокси в настройках.");
+                    } else {
+                        Utils.showToastShort("⚠️ Превышен лимит запросов к Яндекс (HTTP 429), подождите 1 минуту");
+                    }
                     return false;
                 }
                 if (code != 200) {
@@ -336,18 +402,13 @@ public class YandexTranslationService {
                 String tokenPath = uuid + ":/video-translation/audio:" + COMPONENT_VERSION;
                 String tokenSignature = generateSignature(tokenPath.getBytes(StandardCharsets.UTF_8));
 
-                URL url = new URL(YANDEX_BASE_URL + "/video-translation/audio");
+                URL url = new URL(getBaseUrl() + "/video-translation/audio");
                 HttpURLConnection conn = (HttpURLConnection) url.openConnection();
                 conn.setConnectTimeout(CONNECT_TIMEOUT_MS);
                 conn.setReadTimeout(READ_TIMEOUT_MS);
                 conn.setRequestMethod("PUT");
                 conn.setDoOutput(true);
-                applyClientHeaders(conn);
-                conn.setRequestProperty("Content-Type", "application/x-protobuf");
-                conn.setRequestProperty("Accept", "application/x-protobuf");
-                conn.setRequestProperty("Vtrans-Signature", signature);
-                conn.setRequestProperty("Sec-Vtrans-Token", tokenSignature + ":" + tokenPath);
-                conn.setRequestProperty("Sec-Vtrans-Sk", secretKey);
+                setupConnectionHeaders(conn, "application/x-protobuf", signature, tokenSignature + ":" + tokenPath, secretKey);
 
                 try (OutputStream os = conn.getOutputStream()) {
                     os.write(body);
@@ -358,7 +419,11 @@ public class YandexTranslationService {
                 if (code == 429) {
                     rateLimitUntilMs = System.currentTimeMillis() + 60_000L;
                     resetSession();
-                    Utils.showToastShort("⚠️ Превышен лимит запросов к Яндекс (HTTP 429), подождите 1 минуту");
+                    if (!isProxyEnabled()) {
+                        Utils.showToastShort("⚠️ Лимит запросов Яндекс (429). Включите VOT Прокси в настройках.");
+                    } else {
+                        Utils.showToastShort("⚠️ Превышен лимит запросов к Яндекс (HTTP 429), подождите 1 минуту");
+                    }
                     return false;
                 }
                 if (code != 200) {

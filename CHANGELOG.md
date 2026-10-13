@@ -1,3 +1,9 @@
+## [1.47.3](https://github.com/PerfLite/morphe-patches/compare/v1.47.2...v1.47.3) (2026-10-13)
+
+### ✨ Features
+
+* **Voiceover translation:** Add VOT Worker proxy support (vot-worker.eu.cc) to bypass Yandex IP blocks & HTTP 429
+
 ## [1.47.2](https://github.com/PerfLite/morphe-patches/compare/v1.47.1...v1.47.2) (2026-10-13)
 
 ### 🐛 Bug Fixes
