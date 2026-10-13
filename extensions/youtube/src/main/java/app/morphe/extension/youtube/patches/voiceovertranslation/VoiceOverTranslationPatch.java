@@ -809,7 +809,12 @@ public class VoiceOverTranslationPatch {
 
         // Includes "video is already in the target language": the subtitle path detects that
         // itself and leaves the original audio alone, so fall through instead of going quiet.
-        Logger.printDebug(() -> "Yandex has no voice-over for " + videoId + ", falling back to subtitles TTS");
+        final String yandexRejection = response == null
+                ? "no response, session or network failure"
+                : response.getResponseStatusValue() + " " + response.getResponseStatus()
+                        + " / " + response.getResponseMessage();
+        Logger.printDebug(() -> "Yandex has no voice-over for " + videoId + " (" + yandexRejection
+                + "), falling back to subtitles TTS");
         return false;
     }
 
