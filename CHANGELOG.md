@@ -1,3 +1,9 @@
+## [1.47.1](https://github.com/PerfLite/morphe-patches/compare/v1.47.0...v1.47.1) (2026-10-13)
+
+### 🐛 Bug Fixes
+
+* **Voiceover translation:** Pause translation audio when the video stalls outside the player UI ([abeaad9](https://github.com/PerfLite/morphe-patches/commit/abeaad950da57552d5a0040176c7cc395c38cf0c))
+
 ## [1.47.0](https://github.com/PerfLite/morphe-patches/compare/v1.46.0...v1.47.0) (2026-10-11)
 
 ### 🐛 Bug Fixes
