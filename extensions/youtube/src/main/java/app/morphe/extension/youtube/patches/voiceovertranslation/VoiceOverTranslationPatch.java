@@ -18,6 +18,7 @@ import android.content.Intent;
 import android.media.AudioAttributes;
 import android.net.Uri;
 import android.os.Bundle;
+import android.os.SystemClock;
 import android.speech.tts.TextToSpeech;
 import android.speech.tts.UtteranceProgressListener;
 import android.util.Pair;
@@ -129,6 +130,16 @@ public class VoiceOverTranslationPatch {
     // Floor on the calculated speech rate; never slow speech below natural speed.
     private static final float MIN_SPEECH_RATE = 1.0f;
 
+    // Video position gap above which the watchdog pauses translation audio.
+    private static final long POSITION_STALL_THRESHOLD_MS = 2_500;
+
+    // Uptime of the last position advance, and the position it reported.
+    private static long lastPositionTickMs;
+    private static long lastWatchdogPositionMs = -1;
+    // True while a stall check is pending on the main looper, and while the watchdog paused audio.
+    private static boolean positionWatchdogArmed;
+    private static boolean positionWatchdogPaused;
+
     public static final String TTS_ENGINE_SYSTEM = "system";
     private static final String YANDEX_SERVICE = "yandex";
     // Yandex gives an estimate for how long voice-over generation takes; after that poll at a
@@ -239,16 +250,8 @@ public class VoiceOverTranslationPatch {
             }
 
             if (state == VideoState.PAUSED) {
-                // System TTS has no pause API, so fall back to stop+restart for it.
-                // Edge TTS pauses in place to avoid restarting the segment and re-arming
-                // audio focus (which would clip the first frames after resume).
-                if (tts != null && tts.isSpeaking()) {
-                    Logger.printDebug(() -> "Stopping system TTS for video state: " + state);
-                    stopTts();
-                } else {
-                    Logger.printDebug(() -> "Pausing Edge TTS for video state: " + state);
-                    ttsEngine.pause();
-                }
+                Logger.printDebug(() -> "Pausing translation audio for video state: " + state);
+                pauseTranslationAudio();
             } else if (state == VideoState.PLAYING) {
                 ttsEngine.resume();
             } else if (state == VideoState.ENDED) {
@@ -259,6 +262,82 @@ public class VoiceOverTranslationPatch {
             }
             return kotlin.Unit.INSTANCE;
         });
+    }
+
+    /**
+     * Records that the video position advanced. A pause requested outside the player UI, such as
+     * the media notification while the app is in the background, never reaches {@link VideoState},
+     * so translation audio also watches for the position stopping and pauses itself.
+     */
+    private static void recordPositionTick(long timeMs) {
+        Utils.verifyOnMainThread();
+        if (timeMs == lastWatchdogPositionMs) return;
+
+        lastWatchdogPositionMs = timeMs;
+        lastPositionTickMs = SystemClock.elapsedRealtime();
+
+        if (positionWatchdogPaused) {
+            positionWatchdogPaused = false;
+            Logger.printDebug(() -> "Resuming translation audio after a position stall");
+            resumeTranslationAudio();
+        }
+        if (!positionWatchdogArmed) {
+            armPositionWatchdog();
+        }
+    }
+
+    private static void armPositionWatchdog() {
+        positionWatchdogArmed = true;
+        Utils.runOnMainThreadDelayed(
+                VoiceOverTranslationPatch::checkPositionStall, POSITION_STALL_THRESHOLD_MS);
+    }
+
+    private static void checkPositionStall() {
+        Utils.verifyOnMainThread();
+        positionWatchdogArmed = false;
+        if (!Settings.VOT_ENABLED.get() || !sessionEnabled) return;
+
+        final long stalledMs = SystemClock.elapsedRealtime() - lastPositionTickMs;
+        if (stalledMs < POSITION_STALL_THRESHOLD_MS) {
+            armPositionWatchdog(); // Position is advancing again; check again when this gap ages out.
+            return;
+        }
+
+        // The player UI path already handles states it can observe, and with nothing speaking
+        // there is nothing to pause.
+        if (VideoState.getCurrent() != VideoState.PLAYING || !isTranslationAudioActive()) return;
+
+        Logger.printDebug(() -> "Video position stalled for " + stalledMs + "ms, pausing translation audio");
+        positionWatchdogPaused = true;
+        pauseTranslationAudio();
+    }
+
+    private static boolean isTranslationAudioActive() {
+        return ttsEngine.isSpeaking() || YandexAudioEngine.INSTANCE.isPlaying()
+                || (tts != null && tts.isSpeaking());
+    }
+
+    /**
+     * Pauses whatever is currently speaking. System TTS has no pause API, so fall back to
+     * stop+restart for it; Edge TTS pauses in place to avoid restarting the segment and re-arming
+     * audio focus, which would clip the first frames after resume.
+     */
+    private static void pauseTranslationAudio() {
+        if (YANDEX_SERVICE.equals(Settings.VOT_TRANSLATION_SERVICE.get())
+                && YandexAudioEngine.INSTANCE.hasAudioSession()) {
+            YandexAudioEngine.INSTANCE.pause();
+            return;
+        }
+        if (tts != null && tts.isSpeaking()) {
+            stopTts();
+        } else {
+            ttsEngine.pause();
+        }
+    }
+
+    /** Resumes what {@link #pauseTranslationAudio()} paused. The Yandex stream resumes on its own tick. */
+    private static void resumeTranslationAudio() {
+        ttsEngine.resume();
     }
 
     /**
@@ -311,6 +390,10 @@ public class VoiceOverTranslationPatch {
             return; // Feature or session disabled.
         }
         Utils.verifyOnMainThread();
+
+        // Recorded before the player type / video state gates below, which return early and
+        // would otherwise starve the watchdog of ticks.
+        recordPositionTick(timeMs);
 
         propagatePlaybackSpeedIfChanged();
 
