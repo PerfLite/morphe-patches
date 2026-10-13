@@ -130,8 +130,9 @@ public class VoiceOverTranslationPatch {
     // Floor on the calculated speech rate; never slow speech below natural speed.
     private static final float MIN_SPEECH_RATE = 1.0f;
 
-    // Video position gap above which the watchdog pauses translation audio.
-    private static final long POSITION_STALL_THRESHOLD_MS = 2_500;
+    // Video position gap above which the watchdog pauses translation audio. Kept above the
+    // slowest normal tick gap, otherwise a late tick would pause speech mid-segment.
+    private static final long POSITION_STALL_THRESHOLD_MS = 1_500;
 
     // Uptime of the last position advance, and the position it reported.
     private static long lastPositionTickMs;
