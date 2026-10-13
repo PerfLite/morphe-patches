@@ -8,12 +8,13 @@ import java.io.OutputStream;
 import java.net.HttpURLConnection;
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
-import java.util.UUID;
+import java.util.Random;
 
 import javax.crypto.Mac;
 import javax.crypto.spec.SecretKeySpec;
 
 import app.morphe.extension.shared.Logger;
+import app.morphe.extension.shared.Utils;
 import app.morphe.extension.youtube.patches.voiceovertranslation.yandex.Vtrans.AudioBufferObject;
 import app.morphe.extension.youtube.patches.voiceovertranslation.yandex.Vtrans.VideoTranslationAudioRequest;
 import app.morphe.extension.youtube.patches.voiceovertranslation.yandex.Vtrans.VideoTranslationRequest;
@@ -24,36 +25,56 @@ import app.morphe.extension.youtube.patches.voiceovertranslation.yandex.Vtrans.Y
 public class YandexTranslationService {
 
     private static final String YANDEX_BASE_URL = "https://api.browser.yandex.ru";
-    private static final String USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 YaBrowser/26.8.0.0 Safari/537.36";
+    private static final String USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 YaBrowser/26.10.0.1796 Safari/537.36";
     private static final String HMAC_KEY = "bt8xH3VOlb4mqf0nqAibnDOoiPlXsisf";
-    private static final String COMPONENT_VERSION = "26.8.3.1002";
+    private static final String COMPONENT_VERSION = "26.10.0.1796";
 
     private static final int CONNECT_TIMEOUT_MS = 15_000;
     private static final int READ_TIMEOUT_MS = 30_000;
-    // Network requests happen before each API call, so one extra try per call is enough
-    // to ride out transient failures without stalling the polling loop.
     private static final int MAX_NETWORK_RETRIES = 2;
 
     private static String cachedSecretKey = null;
-    // Yandex keys its in-flight translation cache to the session uuid, so the uuid must survive
-    // secret key renewals. Resetting it restarts voice-over generation from scratch server side.
     private static String sessionUuid = null;
     private static long sessionExpiryTimeMs = 0;
+    private static volatile long rateLimitUntilMs = 0;
+
+    public static boolean isRateLimited() {
+        return System.currentTimeMillis() < rateLimitUntilMs;
+    }
+
+    private static String generateUuid() {
+        final char[] hex = "0123456789ABCDEF".toCharArray();
+        Random rnd = new Random();
+        char[] buf = new char[32];
+        for (int i = 0; i < 32; i++) {
+            buf[i] = hex[rnd.nextInt(16)];
+        }
+        return new String(buf);
+    }
+
+    private static void applyClientHeaders(HttpURLConnection conn) {
+        conn.setRequestProperty("User-Agent", USER_AGENT);
+        conn.setRequestProperty("sec-ch-ua", "\"Not;A=Brand\";v=\"8\", \"Chromium\";v=\"150\", \"YaBrowser\";v=\"26.10\", \"Yowser\";v=\"2.5\"");
+        conn.setRequestProperty("sec-ch-ua-mobile", "?0");
+        conn.setRequestProperty("sec-ch-ua-platform", "\"Windows\"");
+        conn.setRequestProperty("sec-ch-ua-full-version-list", "\"Not;A=Brand\";v=\"8.0.0.0\", \"Chromium\";v=\"150.0.7871.1796\", \"YaBrowser\";v=\"26.10.0.1796\", \"Yowser\";v=\"2.5\"");
+    }
 
     private static synchronized String[] getOrRenewSession() {
         long now = System.currentTimeMillis();
-        if (cachedSecretKey != null && now < sessionExpiryTimeMs) {
+        if (cachedSecretKey != null && sessionUuid != null && now < sessionExpiryTimeMs) {
             return new String[]{sessionUuid, cachedSecretKey};
         }
-        if (sessionUuid == null) {
-            sessionUuid = UUID.randomUUID().toString().replace("-", "").toLowerCase();
+        if (isRateLimited()) {
+            return null;
         }
 
         for (int attempt = 0; attempt <= MAX_NETWORK_RETRIES; attempt++) {
             if (attempt > 0) sleep(1000L * attempt);
             try {
+                final String reqUuid = generateUuid();
                 YandexSessionRequest sessionReq = YandexSessionRequest.newBuilder()
-                        .setUuid(sessionUuid)
+                        .setUuid(reqUuid)
                         .setModule("video-translation")
                         .build();
 
@@ -66,7 +87,7 @@ public class YandexTranslationService {
                 conn.setReadTimeout(READ_TIMEOUT_MS);
                 conn.setRequestMethod("POST");
                 conn.setDoOutput(true);
-                conn.setRequestProperty("User-Agent", USER_AGENT);
+                applyClientHeaders(conn);
                 conn.setRequestProperty("Accept-Language", "en");
                 conn.setRequestProperty("Content-Type", "application/x-protobuf");
                 conn.setRequestProperty("Accept", "application/x-protobuf");
@@ -78,14 +99,26 @@ public class YandexTranslationService {
                 }
 
                 int code = conn.getResponseCode();
+                if (code == 429) {
+                    rateLimitUntilMs = System.currentTimeMillis() + 60_000L;
+                    resetSession();
+                    Logger.printException(() -> "Yandex session creation rate limited (HTTP 429)");
+                    Utils.showToastShort("⚠️ Превышен лимит запросов к Яндекс (HTTP 429), подождите 1 минуту");
+                    return null;
+                }
                 if (code != 200) {
                     Logger.printException(() -> "Yandex session creation failed with HTTP " + code);
+                    if (code == 400 || code == 401 || code == 403) {
+                        resetSession();
+                        return null;
+                    }
                     continue;
                 }
 
                 byte[] respBytes = readAllBytes(conn.getInputStream());
                 YandexSessionResponse sessionResp = YandexSessionResponse.parseFrom(respBytes);
 
+                sessionUuid = reqUuid;
                 cachedSecretKey = sessionResp.getSecretKey();
                 int expires = sessionResp.getExpires();
                 sessionExpiryTimeMs = now + ((long) (expires > 0 ? expires : 3600) * 1000) - 60000;
@@ -99,12 +132,12 @@ public class YandexTranslationService {
     }
 
     /**
-     * Invalidates the cached secret key so the next translate() call creates a fresh one.
-     * The session uuid is deliberately kept: it is what Yandex keys the generated voice-over
-     * cache to, and dropping it would restart generation for videos already in progress.
+     * Resets both the cached secret key and session uuid so a fresh session
+     * with a new UUID is generated on next request.
      */
     public static synchronized void resetSession() {
         cachedSecretKey = null;
+        sessionUuid = null;
         sessionExpiryTimeMs = 0;
     }
 
@@ -121,6 +154,10 @@ public class YandexTranslationService {
     }
 
     public static VideoTranslationResponse translate(String videoUrl, String originalLanguage, String translationLanguage, double originalDuration, boolean useLivelyVoice, String videoTitle) {
+        if (isRateLimited()) {
+            Logger.printDebug(() -> "Yandex translation skipped due to active rate limit (cooldown)");
+            return null;
+        }
         try {
             String[] session = getOrRenewSession();
             if (session == null) {
@@ -181,7 +218,7 @@ public class YandexTranslationService {
                     conn.setReadTimeout(READ_TIMEOUT_MS);
                     conn.setRequestMethod("POST");
                     conn.setDoOutput(true);
-                    conn.setRequestProperty("User-Agent", USER_AGENT);
+                    applyClientHeaders(conn);
                     conn.setRequestProperty("Accept-Language", "en");
                     conn.setRequestProperty("Accept", "application/x-protobuf");
                     conn.setRequestProperty("Content-Type", "application/x-protobuf");
@@ -201,10 +238,18 @@ public class YandexTranslationService {
                     }
 
                     int responseCode = conn.getResponseCode();
+                    if (responseCode == 429) {
+                        rateLimitUntilMs = System.currentTimeMillis() + 60_000L;
+                        resetSession();
+                        Logger.printException(() -> "Yandex API rate limited (HTTP 429)");
+                        Utils.showToastShort("⚠️ Превышен лимит запросов к Яндекс (HTTP 429), подождите 1 минуту");
+                        return null;
+                    }
                     if (responseCode != 200) {
                         Logger.printException(() -> "Yandex API returned HTTP " + responseCode);
-                        if (responseCode == 400 || responseCode == 401 || responseCode == 403 || responseCode == 429) {
+                        if (responseCode == 400 || responseCode == 401 || responseCode == 403) {
                             resetSession();
+                            return null;
                         }
                         continue;
                     }
@@ -229,6 +274,7 @@ public class YandexTranslationService {
      * failed and upload an empty placeholder, then let the caller re-request translate.
      */
     public static boolean reportAudioUnavailable(String videoUrl, String translationId) {
+        if (isRateLimited()) return false;
         try {
             if (videoUrl == null || translationId == null || translationId.isEmpty()) {
                 return false;
@@ -239,9 +285,7 @@ public class YandexTranslationService {
             String uuid = session[0];
             String secretKey = session[1];
 
-            // PUT /video-translation/fail-audio-js with a JSON body. This mirrors the
-            // reference implementation, which sends this as plain JSON without the
-            // protobuf signature headers.
+            // PUT /video-translation/fail-audio-js with a JSON body.
             {
                 byte[] body = ("{\"video_url\":\"" + videoUrl + "\"}").getBytes(StandardCharsets.UTF_8);
 
@@ -251,7 +295,7 @@ public class YandexTranslationService {
                 conn.setReadTimeout(READ_TIMEOUT_MS);
                 conn.setRequestMethod("PUT");
                 conn.setDoOutput(true);
-                conn.setRequestProperty("User-Agent", USER_AGENT);
+                applyClientHeaders(conn);
                 conn.setRequestProperty("Accept-Language", "en");
                 conn.setRequestProperty("Content-Type", "application/json");
                 conn.setRequestProperty("Accept", "application/json");
@@ -265,6 +309,12 @@ public class YandexTranslationService {
                 }
 
                 int code = conn.getResponseCode();
+                if (code == 429) {
+                    rateLimitUntilMs = System.currentTimeMillis() + 60_000L;
+                    resetSession();
+                    Utils.showToastShort("⚠️ Превышен лимит запросов к Яндекс (HTTP 429), подождите 1 минуту");
+                    return false;
+                }
                 if (code != 200) {
                     Logger.printException(() -> "Yandex fail-audio-js returned HTTP " + code);
                     return false;
@@ -292,7 +342,7 @@ public class YandexTranslationService {
                 conn.setReadTimeout(READ_TIMEOUT_MS);
                 conn.setRequestMethod("PUT");
                 conn.setDoOutput(true);
-                conn.setRequestProperty("User-Agent", USER_AGENT);
+                applyClientHeaders(conn);
                 conn.setRequestProperty("Content-Type", "application/x-protobuf");
                 conn.setRequestProperty("Accept", "application/x-protobuf");
                 conn.setRequestProperty("Vtrans-Signature", signature);
@@ -305,9 +355,15 @@ public class YandexTranslationService {
                 }
 
                 int code = conn.getResponseCode();
+                if (code == 429) {
+                    rateLimitUntilMs = System.currentTimeMillis() + 60_000L;
+                    resetSession();
+                    Utils.showToastShort("⚠️ Превышен лимит запросов к Яндекс (HTTP 429), подождите 1 минуту");
+                    return false;
+                }
                 if (code != 200) {
                     Logger.printException(() -> "Yandex audio upload returned HTTP " + code);
-                    if (code == 400 || code == 401 || code == 403 || code == 429) {
+                    if (code == 400 || code == 401 || code == 403) {
                         resetSession();
                     }
                     return false;
