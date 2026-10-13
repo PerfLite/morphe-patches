@@ -1,3 +1,9 @@
+## [1.47.2](https://github.com/PerfLite/morphe-patches/compare/v1.47.1...v1.47.2) (2026-10-13)
+
+### 🐛 Bug Fixes
+
+* **Voiceover translation:** Fix Yandex HTTP 429 rate limit, modern headers and session UUID handling ([cf9e7c9](https://github.com/PerfLite/morphe-patches/commit/cf9e7c90519b9de42a989c8a11204d0ecbce1d2f))
+
 ## [1.47.1](https://github.com/PerfLite/morphe-patches/compare/v1.47.0...v1.47.1) (2026-10-13)
 
 ### 🐛 Bug Fixes
