@@ -29,9 +29,9 @@ import app.morphe.extension.youtube.patches.voiceovertranslation.yandex.Vtrans.Y
 public class YandexTranslationService {
 
     private static final String YANDEX_BASE_URL = "https://api.browser.yandex.ru";
-    private static final String USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 YaBrowser/26.10.0.1796 Safari/537.36";
+    private static final String USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/152.0.0.0 YaBrowser/26.10.0.0 Safari/537.36";
     private static final String HMAC_KEY = "bt8xH3VOlb4mqf0nqAibnDOoiPlXsisf";
-    private static final String COMPONENT_VERSION = "26.10.0.1796";
+    private static final String COMPONENT_VERSION = "26.10.0.1854";
 
     private static final int CONNECT_TIMEOUT_MS = 15_000;
     private static final int READ_TIMEOUT_MS = 30_000;
@@ -78,10 +78,11 @@ public class YandexTranslationService {
 
     private static void applyClientHeaders(HttpURLConnection conn) {
         conn.setRequestProperty("User-Agent", USER_AGENT);
-        conn.setRequestProperty("sec-ch-ua", "\"Not;A=Brand\";v=\"8\", \"Chromium\";v=\"150\", \"YaBrowser\";v=\"26.10\", \"Yowser\";v=\"2.5\"");
+        conn.setRequestProperty("sec-ch-ua", "\"Chromium\";v=\"152\", \"Not?A_Brand\";v=\"24\", \"YaBrowser\";v=\"26.10\", \"Yowser\";v=\"2.5\"");
         conn.setRequestProperty("sec-ch-ua-mobile", "?0");
         conn.setRequestProperty("sec-ch-ua-platform", "\"Windows\"");
-        conn.setRequestProperty("sec-ch-ua-full-version-list", "\"Not;A=Brand\";v=\"8.0.0.0\", \"Chromium\";v=\"150.0.7871.1796\", \"YaBrowser\";v=\"26.10.0.1796\", \"Yowser\";v=\"2.5\"");
+        conn.setRequestProperty("sec-ch-ua-full-version-list", "\"Chromium\";v=\"152.0.7977.1854\", \"Not?A_Brand\";v=\"24.0.0.0\", \"YaBrowser\";v=\"26.10.0.1854\", \"Yowser\";v=\"2.5\"");
+        conn.setRequestProperty("Sec-Fetch-Mode", "no-cors");
     }
 
     private static void setupConnectionHeaders(HttpURLConnection conn, String contentType, String signature, String token, String sk) {
@@ -89,10 +90,11 @@ public class YandexTranslationService {
             try {
                 JSONObject headers = new JSONObject();
                 headers.put("User-Agent", USER_AGENT);
-                headers.put("sec-ch-ua", "\"Not;A=Brand\";v=\"8\", \"Chromium\";v=\"150\", \"YaBrowser\";v=\"26.10\", \"Yowser\";v=\"2.5\"");
+                headers.put("sec-ch-ua", "\"Chromium\";v=\"152\", \"Not?A_Brand\";v=\"24\", \"YaBrowser\";v=\"26.10\", \"Yowser\";v=\"2.5\"");
                 headers.put("sec-ch-ua-mobile", "?0");
                 headers.put("sec-ch-ua-platform", "\"Windows\"");
-                headers.put("sec-ch-ua-full-version-list", "\"Not;A=Brand\";v=\"8.0.0.0\", \"Chromium\";v=\"150.0.7871.1796\", \"YaBrowser\";v=\"26.10.0.1796\", \"Yowser\";v=\"2.5\"");
+                headers.put("sec-ch-ua-full-version-list", "\"Chromium\";v=\"152.0.7977.1854\", \"Not?A_Brand\";v=\"24.0.0.0\", \"YaBrowser\";v=\"26.10.0.1854\", \"Yowser\";v=\"2.5\"");
+                headers.put("Sec-Fetch-Mode", "no-cors");
                 headers.put("Accept-Language", "en");
                 headers.put("Content-Type", contentType);
                 headers.put("Accept", contentType);
@@ -108,7 +110,7 @@ public class YandexTranslationService {
                     headers.put("Sec-Vtrans-Sk", sk);
                 }
                 String b64 = Base64.encodeToString(headers.toString().getBytes(StandardCharsets.UTF_8), Base64.NO_WRAP);
-                conn.setRequestProperty("User-Agent", "vot.js/3.1.5");
+                conn.setRequestProperty("User-Agent", "vot.js/3.2.1");
                 conn.setRequestProperty("X-VOT-Headers", b64);
                 conn.setRequestProperty("Content-Type", contentType);
                 conn.setRequestProperty("Accept", contentType);
@@ -341,10 +343,11 @@ public class YandexTranslationService {
      * YandexProvider.translateVideo(): tell the backend the player-side audio download
      * failed and upload an empty placeholder, then let the caller re-request translate.
      */
-    public static boolean reportAudioUnavailable(String videoUrl, String translationId) {
+    public static boolean reportAudioUnavailable(String videoUrl, String videoId, String translationId) {
         if (isRateLimited()) return false;
         try {
-            if (videoUrl == null || translationId == null || translationId.isEmpty()) {
+            if (videoUrl == null || videoId == null || videoId.isEmpty()
+                    || translationId == null || translationId.isEmpty()) {
                 return false;
             }
 
@@ -393,7 +396,7 @@ public class YandexTranslationService {
                         .setTranslationId(translationId)
                         .setOriginalUrl(videoUrl)
                         .setAudioInfo(AudioBufferObject.newBuilder()
-                                .setFileId("web_api_get_all_generating_urls_data_from_iframe")
+                                .setFileId("fallback-empty-audio:video-translation:" + videoId)
                                 .setAudioFile(ByteString.EMPTY)
                                 .build())
                         .build();
