@@ -1,7 +1,7 @@
 {
-  "created_at": "2026-10-31T01:18:12",
-  "description": "## [2.0.0](https://github.com/PerfLite/morphe-patches/compare/v1.47.3...v2.0.0) (2026-10-31)\n\n### ✨ Features\n\n* **Upstream sync:** Morphe patches 2.0.0 (YouTube 21.43 support, video quality, navigation bar, miniplayer and caption fixes)\n* **Voiceover translation:** Update the Yandex engine to vot.js 3.2.1 (component version 26.10.0.1854, Chromium 152 client headers, new fallback audio file id)",
-  "download_url": "https://github.com/PerfLite/morphe-patches/releases/download/v2.0.0/patches-2.0.0.mpp",
+  "created_at": "2026-11-09T02:15:00",
+  "description": "## [2.1.0](https://github.com/PerfLite/morphe-patches/compare/v2.0.0...v2.1.0) (2026-11-09)\n\n### ✨ Features\n\n* **Upstream sync:** Morphe patches 2.1.0 (YouTube 21.44 support, bilingual captions, in-app export, glass navigation bar, element hooks cleanup)\n* **Voiceover translation:** Yandex VOT with 429 rate limit fixes and VOT Worker Proxy support",
+  "download_url": "https://github.com/PerfLite/morphe-patches/releases/download/v2.1.0/patches-2.1.0.mpp",
   "signature_download_url": "",
-  "version": "2.0.0"
+  "version": "2.1.0"
 }
