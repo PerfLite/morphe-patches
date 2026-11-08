@@ -1,37 +1,116 @@
-<div align="center"> 
-<picture>
-    <source
-      width="512px"
-      media="(prefers-color-scheme: dark)"
-      srcset="https://raw.githubusercontent.com/MorpheApp/.github/refs/heads/main/profile/assets/morphe-wordmark/morphe_wordmark_dark.svg"
-    />
-    <img 
-      width="512px"
-      src="https://raw.githubusercontent.com/MorpheApp/.github/refs/heads/main/profile/assets/morphe-wordmark/morphe_wordmark_light.svg"
-     alt="Morphe_logo"/>
-</picture>
+<div align="center">
 
-[![Website badge](https://img.shields.io/badge/Website-gray.svg?logo=data:image/svg%2bxml;base64,PD94bWwgdmVyc2lvbj0iMS4wIiBlbmNvZGluZz0iVVRGLTgiIHN0YW5kYWxvbmU9Im5vIj8+CjwhLS0gQ29weXJpZ2h0IDIwMjUgTW9ycGhlLiBUaGlzIGlzIGNvcHlyaWdodGVkIGNvbnRlbnQsIGFuZCBub3QgbGljZW5zZWQgdW5kZXIgb3BlbiBzb3VyY2UgdGVybXMuCiAgICAgU2VlIGh0dHBzOi8vZ2l0aHViLmNvbS9Nb3JwaGVBcHAvbW9ycGhlLWJyYW5kaW5nIC0tPgoKPHN2ZwogICB3aWR0aD0iNTEyIgogICBoZWlnaHQ9IjUxMiIKICAgdmlld0JveD0iMCAwIDUxMiA1MTIiCiAgIHZlcnNpb249IjEuMSIKICAgaWQ9InN2ZzIiCiAgIHNvZGlwb2RpOmRvY25hbWU9Im1vcnBoZV9sb2dvX2xpZ2h0LnN2ZyIKICAgaW5rc2NhcGU6dmVyc2lvbj0iMS40LjIgKGViZjBlOTQwZDAsIDIwMjUtMDUtMDgpIgogICB4bWxuczppbmtzY2FwZT0iaHR0cDovL3d3dy5pbmtzY2FwZS5vcmcvbmFtZXNwYWNlcy9pbmtzY2FwZSIKICAgeG1sbnM6c29kaXBvZGk9Imh0dHA6Ly9zb2RpcG9kaS5zb3VyY2Vmb3JnZS5uZXQvRFREL3NvZGlwb2RpLTAuZHRkIgogICB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciCiAgIHhtbG5zOnN2Zz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciPgogIDxzb2RpcG9kaTpuYW1lZHZpZXcKICAgICBpZD0ibmFtZWR2aWV3MiIKICAgICBwYWdlY29sb3I9IiNmZmZmZmYiCiAgICAgYm9yZGVyY29sb3I9IiMwMDAwMDAiCiAgICAgYm9yZGVyb3BhY2l0eT0iMC4yNSIKICAgICBpbmtzY2FwZTpzaG93cGFnZXNoYWRvdz0iMiIKICAgICBpbmtzY2FwZTpwYWdlb3BhY2l0eT0iMC4wIgogICAgIGlua3NjYXBlOnBhZ2VjaGVja2VyYm9hcmQ9IjAiCiAgICAgaW5rc2NhcGU6ZGVza2NvbG9yPSIjZDFkMWQxIgogICAgIGlua3NjYXBlOnpvb209IjEuMTU0Mjk2OSIKICAgICBpbmtzY2FwZTpjeD0iMjU2IgogICAgIGlua3NjYXBlOmN5PSIyNTYiCiAgICAgaW5rc2NhcGU6d2luZG93LXdpZHRoPSIxNDQwIgogICAgIGlua3NjYXBlOndpbmRvdy1oZWlnaHQ9IjgzNiIKICAgICBpbmtzY2FwZTp3aW5kb3cteD0iMCIKICAgICBpbmtzY2FwZTp3aW5kb3cteT0iMCIKICAgICBpbmtzY2FwZTp3aW5kb3ctbWF4aW1pemVkPSIxIgogICAgIGlua3NjYXBlOmN1cnJlbnQtbGF5ZXI9InN2ZzIiPgogICAgPGlua3NjYXBlOnBhZ2UKICAgICAgIHg9IjAiCiAgICAgICB5PSIwIgogICAgICAgd2lkdGg9IjUxMiIKICAgICAgIGhlaWdodD0iNTEyIgogICAgICAgaWQ9InBhZ2UyIgogICAgICAgbWFyZ2luPSIwIgogICAgICAgYmxlZWQ9IjAiIC8+CiAgPC9zb2RpcG9kaTpuYW1lZHZpZXc+CiAgPGRlZnMKICAgICBpZD0iZGVmczIiIC8+CiAgPCEtLSBMZXR0ZXIgLS0+CiAgPGcKICAgICBpZD0iTGV0dGVyIgogICAgIHN0eWxlPSJmaWxsOiNmZmZmZmY7ZmlsbC1vcGFjaXR5OjEiPgogICAgPHBhdGgKICAgICAgIGlkPSJMZWZ0IgogICAgICAgZD0ibSAxMjMsMTQwIGMgLTIxLDAgLTM5LDE3IC00MCwzOCB2IDE5MiBjIDEsMjEgMTksMzggNDAsMzggMjEsMCAzOSwtMTcgNDAsLTM4IFYgMTc4IGMgLTEsLTIxIC0xOSwtMzggLTQwLC0zOCB6IgogICAgICAgZmlsbD0iIzFFNUFBOCIKICAgICAgIHN0eWxlPSJmaWxsOiNmZmZmZmY7ZmlsbC1vcGFjaXR5OjEiIC8+CiAgICA8cGF0aAogICAgICAgaWQ9IlJpZ2h0IgogICAgICAgZD0ibSAzNDksMjg1IHYgODUgYyAxLDIxIDE5LDM4IDQwLDM4IDIxLDAgMzksLTE3IDQwLC0zOCBWIDE4MiBjIC0xMSwtMTQgLTc0LDYzIC04MCwxMDMgeiIKICAgICAgIGZpbGw9IiMwMEFGQUUiCiAgICAgICBzdHlsZT0iZmlsbDojZmZmZmZmO2ZpbGwtb3BhY2l0eToxIiAvPgogICAgPHBhdGgKICAgICAgIGlkPSJNaWRkbGUiCiAgICAgICBkPSJtIDEyNywxMDggYyAtMzQsMCAtNDQsMjUgLTQ0LDQwIHYgNTQgYyAzMCwtMzMgNzUsMjcgODAsMzMgMjgsMzIgNDQsODcgOTMsODkgNDgsLTIgNjcsLTU2IDkzLC04OSAwLDAgNDUsLTc0IDgwLC04MCAwLC0yOCAtMTEsLTQ3IC00NCwtNDcgLTM0LDAgLTU4LDUwIC03NSw3MiAtMTcsMjIgLTI1LDQ2IC01NCw0NiAtMjksMCAtMzgsLTI1IC01NCwtNDYgLTE3LC0yMiAtNDEsLTcyIC03NSwtNzIgeiIKICAgICAgIGZpbGw9InVybCgjbGluZWFyR3JhZGllbnQyKSIKICAgICAgIHN0eWxlPSJmaWxsOiNmZmZmZmY7ZmlsbC1vcGFjaXR5OjEiIC8+CiAgPC9nPgo8L3N2Zz4K&style=for-the-badge)](https://morphe.software) [![Documentation badge](https://img.shields.io/badge/Documentation-gray?style=for-the-badge&logo=github)](https://github.com/MorpheApp/morphe-documentation#readme) [![Subreddit badge](https://img.shields.io/badge/Reddit-gray?style=for-the-badge&logo=reddit&logoColor=white)](https://www.reddit.com/r/MorpheApp) [![Crowdin badge](https://img.shields.io/badge/Translations-gray?style=for-the-badge&logo=crowdin)](https://morphe.software/translate)
-<br>
-</div> 
+<img src="assets/banner.svg" alt="YouTube Patches" width="100%">
 
-&nbsp;
-<p align="center">
-  <a href="https://morphe.software" title="Download Morphe">
-    <img src="https://raw.githubusercontent.com/MorpheApp/.github/refs/heads/main/profile/assets/download-morphe.svg" alt="Download Morphe" width="240"/>
-  </a>
+<p>
+  <a href="#english">🇬🇧 English</a> ·
+  <a href="#русский">🇷🇺 Русский</a>
 </p>
-&nbsp;
 
-# 🧩 Patches
-Morphe Patches
+<p>
+  <img src="https://img.shields.io/github/v/release/PerfLite/morphe-patches?style=flat-square" alt="release">
+  <img src="https://img.shields.io/github/license/PerfLite/morphe-patches?style=flat-square" alt="license">
+  <img src="https://img.shields.io/github/languages/top/PerfLite/morphe-patches?style=flat-square" alt="language">
+  <img src="https://img.shields.io/github/stars/PerfLite/morphe-patches?style=flat-square" alt="stars">
+  <img src="https://img.shields.io/github/downloads/PerfLite/morphe-patches/total?style=flat-square" alt="downloads">
+</p>
 
-## ❓ About
+<p>
+  <a href="https://github.com/PerfLite/morphe-patches/releases/latest"><b>⬇️ Download / Скачать</b></a> ·
+  <a href="https://github.com/PerfLite/morphe-patches/releases">📦 All releases / Все релизы</a>
+</p>
 
-Morphe Patches are based off the prior work of [ReVanced](https://github.com/ReVanced).
-All modifications made by Morphe, along with their dates, can be found in the Git history.
+</div>
 
-&nbsp;
+## ⬇️ Download / Скачать
+
+| File / Файл | Description / Описание | Link / Ссылка |
+|---|---|---|
+| `patches-2.1.0.mpp` | Morphe patches bundle for YouTube · Набор патчей Morphe для YouTube | [Download](https://github.com/PerfLite/morphe-patches/releases/latest/download/patches-2.1.0.mpp) |
+
+> Older versions and changelogs: [Releases](https://github.com/PerfLite/morphe-patches/releases) ·
+> Старые версии и список изменений: [Релизы](https://github.com/PerfLite/morphe-patches/releases)
+
+---
+
+## English
+
+Morphe patches bundle for YouTube with integrated Voice-Over Translation (Yandex neural dubbing), ad blocking, SponsorBlock, Return YouTube Dislike, and modern UI enhancements.
+
+### Features
+
+- **Voice-over translation (VOT):** Neural video dubbing powered by Yandex TTS with built-in VOT Worker proxy support (`vot-worker.eu.cc`) and HTTP 429 rate limit fixes.
+- **Ad blocking:** Removes video ads, banners, and promotional components across feed and player.
+- **SponsorBlock & Return YouTube Dislike:** Skips sponsor segments and restores dislike counters.
+- **Modern UI & Controls:** Bilingual captions, docked miniplayer, glass navigation bar, and playback speed gestures.
+- **In-App Downloads:** Export in-app downloaded videos directly to device storage.
+
+### Install
+
+Add the repository in Morphe Manager as an external source:
+
+```
+https://github.com/PerfLite/morphe-patches
+```
+
+Or install manually:
+1. Download `patches-2.1.0.mpp` from [Releases](https://github.com/PerfLite/morphe-patches/releases/latest).
+2. Import the bundle into Morphe Manager.
+3. Select supported YouTube APK (e.g., 21.30.216) and patch.
+
+### Build
+
+```bash
+./gradlew :patches:buildAndroid :patches:generatePatchesList -x test
+```
+
+### License
+
+GPL-3.0 — see [LICENSE](LICENSE).
+
+<p align="right"><a href="#english">↑ Back to top</a> · <a href="#русский">Русский ↓</a></p>
+
+---
+
+## Русский
+
+Набор патчей Morphe для Android-клиента YouTube со встроенным закадровым переводом (нейросетевая озвучка Яндекс), блокировкой рекламы, SponsorBlock, Return YouTube Dislike и расширенными возможностями интерфейса.
+
+### Возможности
+
+- **Закадровый перевод видео (VOT):** Нейросетевая озвучка от Яндекса со встроенной поддержкой прокси VOT Worker (`vot-worker.eu.cc`) для обхода ограничений и ошибок HTTP 429.
+- **Блокировка рекламы:** Полное удаление видеорекламы, промо-блоков и рекламных баннеров в ленте и плеере.
+- **SponsorBlock и Return YouTube Dislike:** Автоматический пропуск спонсорских вставок и отображение количества дизлайков.
+- **Интерфейс и управление:** Двуязычные субтитры, стеклянный навбар, настраиваемый миниплеер и гибкое управление скоростью жестами.
+- **Встроенные загрузки:** Экспорт загруженных внутри приложения видео напрямую в память устройства.
+
+### Установка
+
+Добавьте репозиторий в Morphe Manager как источник:
+
+```
+https://github.com/PerfLite/morphe-patches
+```
+
+Или вручную:
+1. Скачайте `patches-2.1.0.mpp` со страницы [Релизы](https://github.com/PerfLite/morphe-patches/releases/latest).
+2. Импортируйте файл бандла в Morphe Manager.
+3. Выберите поддерживаемый APK YouTube (например, 21.30.216) и запустите патчинг.
+
+### Сборка
+
+```bash
+./gradlew :patches:buildAndroid :patches:generatePatchesList -x test
+```
+
+### Лицензия
+
+GPL-3.0 — см. [LICENSE](LICENSE).
+
+<p align="right"><a href="#русский">↑ Наверх</a> · <a href="#english">English ↑</a></p>
+
+---
+
 ## 🩹 Patches list
 
 <!-- PATCHES_START -->
@@ -178,20 +257,3 @@ All modifications made by Morphe, along with their dates, can be found in the Gi
 </details>
 
 <!-- PATCHES_END -->
-
-## Contributing
-
-We currently accept pull requests for fixes/improvements to YouTube, YT Music, and Reddit.
-If you have developed patches for other apps, you are encouraged to release your patches in a third party repository.
-See the [Patches template](https://github.com/morpheapp/morphe-patches-template) for more information.  
-
-Before opening a pull request, read the [contribution guidelines](CONTRIBUTING.md).
-
-## 📜 License
-
-Morphe Patches are licensed under the [GNU General Public License v3.0](LICENSE), with additional conditions under GPLv3 Section 7:
-
-- **Attribution (7b):** Any use of this code, including derivative works, must preserve all original notices and disclaimers.
-- **Name & Branding Restrictions (7c & 7e):** Derivative works must use their own distinct branding. The **"Morphe"** name, logos, and trademarks may not be used for the branding or title of derivative works (e.g., names like *"Morphe Plus"*, *"Morphe Expanded"*, or *"Morphe UserXYZ"* are strictly prohibited).
-
-See the [LICENSE](LICENSE) file for full GPLv3 terms and the [NOTICE](NOTICE) file for full conditions of GPLv3 Section 7.
