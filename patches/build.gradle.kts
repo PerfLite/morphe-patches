@@ -17,9 +17,6 @@ patches {
 // Separate configuration so gson is available at runtime for the
 // generatePatchesList task but never bundled into the APK.
 val patchListGeneratorClasspath = configurations.create("patchListGeneratorClasspath")
-val jamApk = providers.gradleProperty("jamApk")
-val jamOutput = providers.gradleProperty("jamOutput")
-
 // Resolve local composite build projects (smali, patcher) to jars for compilation,
 // same as the runtime classpath. Otherwise, both the classes directory and the jar
 // are passed to D8 by buildAndroid, and it fails with "Classpath type already present".
@@ -64,8 +61,7 @@ tasks {
     test {
         useJUnitPlatform()
         dependsOn(":extensions:youtube:generateReleaseProto", ":extensions:youtube:compileReleaseJavaWithJavac")
-        jamApk.orNull?.let { systemProperty("jamApk", it) }
-        // The Android-boundary tests load release bytecode in isolated class loaders.
+                // The Android-boundary tests load release bytecode in isolated class loaders.
         // Declare those actual classes as inputs so runtime changes invalidate cached results.
         inputs.dir(rootProject.file(
             "extensions/youtube/build/intermediates/javac/release/compileReleaseJavaWithJavac/classes"
@@ -102,21 +98,6 @@ tasks {
 
         classpath = sourceSets["main"].runtimeClasspath + patchListGeneratorClasspath
         mainClass.set("app.morphe.util.PatchListGeneratorKt")
-    }
-
-    register<JavaExec>("validateJam") {
-        description = "Patches a supplied YouTube Music APK for Jam validation and optional device testing"
-        group = "verification"
-
-        dependsOn("testClasses")
-        classpath = sourceSets["test"].runtimeClasspath
-        mainClass.set("app.morphe.patches.music.interaction.jam.JamDeviceBuildKt")
-
-        doFirst {
-            val apk = jamApk.orNull
-                ?: throw GradleException("validateJam requires -PjamApk=/absolute/path/to/ytm.apk")
-            setArgs(listOfNotNull(apk, jamOutput.orNull))
-        }
     }
 
     register<JavaExec>("validatePlaylistQueue") {

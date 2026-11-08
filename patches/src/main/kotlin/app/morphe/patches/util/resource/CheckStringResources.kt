@@ -61,11 +61,9 @@ internal fun main(args: Array<String>) {
     val exceptions = mutableListOf<Exception>()
 
     arrayOf(
-        "music",
         "shared",
         "shared-youtube",
         "youtube",
-        "reddit",
         "sponsorblock"
     ).forEach { appId ->
         val englishSubPath = "values/$appId/strings.xml"
